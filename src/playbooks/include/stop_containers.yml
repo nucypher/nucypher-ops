@@ -1,0 +1,11 @@
+- name: "Stop Geth and Ursula Containers if they are running"
+  hosts: "{{ play_hosts }}"
+  remote_user: "{{default_user}}"
+  gather_facts: no
+  tasks:
+    - name: Stop Ursula
+      become: yes
+      docker_container:
+        name: ursula
+        state: stopped
+      ignore_errors: yes

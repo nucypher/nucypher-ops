@@ -1,0 +1,103 @@
+import os
+import click
+emitter = click
+
+from src.ops.fleet_ops import CloudDeployers
+
+from src.constants import DEFAULT_NAMESPACE, DEFAULT_NETWORK
+
+
+@click.group('nodes')
+def cli():
+    """Manage the machinery"""
+
+
+@cli.command('create')
+@click.option('--cloudprovider', help="aws or digitalocean", default='aws')
+@click.option('--aws-profile', help="The AWS account profile you'd like to use (option not required for DigitalOcean users)", default=None)
+@click.option('--count', help="Create this many nodes.", type=click.INT, default=1)
+@click.option('--namespace', help="Namespace for these operations.  Used to address hosts and data locally and name hosts on cloud platforms.", type=click.STRING, default=DEFAULT_NAMESPACE)
+@click.option('--nickname', help="A nickname by which to remember the created hosts", type=click.STRING, required=False)
+@click.option('--network', help="The Nucypher network name these hosts will run on.", type=click.STRING, default=DEFAULT_NETWORK)
+def create(cloudprovider, aws_profile, count, nickname, namespace, network):
+    """Creates the required number of workers to be staked later under a namespace"""
+
+    if cloudprovider == 'aws':
+        try:
+            import boto3
+        except ImportError:
+            raise click.BadOptionUsage('cloudprovider', "You must have boto3 installed to create aws nodes. run `pip install boto3` or use `--cloudprovider digitalocean`")
+
+    deployer = CloudDeployers.get_deployer(cloudprovider)(emitter, 
+        profile=aws_profile, namespace=namespace, network=network)
+
+    names = []
+    i = 1
+    while len(names) < count:
+        name = (nickname or f'{namespace}-{network}') + f'-{i}'
+        if name not in deployer.config.get('instances', {}):
+            names.append(name)
+        i += 1
+    deployer.create_nodes(names, unstaked=True)
+    emitter.echo(f"done.  created {count} nodes.  list existing nodes with `nucypher-ops nodes list`")
+
+
+@cli.command('add')
+@click.option('--host-address', help="The IP address or Hostname of the host you are adding.", required=True)
+@click.option('--login-name', help="The name username of a user with root privileges we can ssh as on the host.", required=True)
+@click.option('--key-path', help="The path to a keypair we will need to ssh into this host", default="~/.ssh/id_rsa")
+@click.option('--ssh-port', help="The port this host's ssh daemon is listening on", default=22)
+@click.option('--nickname', help="A nickname to remember this host by", type=click.STRING, required=True)
+@click.option('--namespace', help="Namespace for these operations.  Used to address hosts and data locally and name hosts on cloud platforms.", type=click.STRING, required=True, default='nucypher')
+@click.option('--network', help="The Nucypher network name these hosts will run on.", type=click.STRING, default=DEFAULT_NETWORK)
+def add(host_address, login_name, key_path, ssh_port, host_nickname, namespace, network):
+    """Adds an existing node to the local config for future management."""
+
+    name = host_nickname
+
+    deployer = CloudDeployers.get_deployer('generic')(emitter, None, None, namespace=namespace, network=network, action='add')
+    deployer.create_nodes([name], host_address, login_name, key_path, ssh_port)
+    
+
+@cli.command('list')
+@click.option('--network', help="The network whose hosts you want to see.", type=click.STRING, default=DEFAULT_NETWORK)
+@click.option('--namespace', help="The network whose hosts you want to see.", type=click.STRING, default=DEFAULT_NAMESPACE)
+def list(network, namespace):
+    """Prints local config info about known hosts"""
+
+    deployer = CloudDeployers.get_deployer('generic')(emitter, network=network, namespace=namespace)
+    hosts = deployer.get_all_hosts()
+    if not hosts:
+        emitter.echo(f"No nodes in the {network}/{namespace} namespace")
+    for name, data in hosts:
+        emitter.echo(name)
+        for k, v in data.items():
+            emitter.echo(f"\t{k}: {v}")
+
+
+@cli.command('destroy')
+@click.option('--cloudprovider', help="aws or digitalocean")
+@click.option('--namespace', help="Namespace for these operations.  Used to address hosts and data locally and name hosts on cloud platforms.", type=click.STRING, default=DEFAULT_NAMESPACE)
+@click.option('--network', help="The Nucypher network name these hosts will run on.", type=click.STRING, default=DEFAULT_NETWORK)
+@click.option('--include-host', 'include_hosts', help="destroy only the named hosts", multiple=True, type=click.STRING)
+def destroy(cloudprovider, namespace, network, include_hosts):
+    """Cleans up all previously created resources for the given netork for the cloud providern"""
+
+    if not cloudprovider:
+        hosts = CloudDeployers.get_deployer('generic')(emitter, network=network, namespace=namespace).get_all_hosts()
+        if len(set(host['provider'] for address, host in hosts)) == 1: # check if there are hosts in this namespace
+            cloudprovider = hosts[0][1]['provider']
+        else:
+            emitter.echo("Found hosts from multiple cloudproviders.")
+            emitter.echo("We can only destroy hosts from one cloudprovider at a time.")
+            emitter.echo("Please specify which provider's hosts you'd like to destroy using --cloudprovider (digitalocean or aws)")
+            return
+    deployer = CloudDeployers.get_deployer(cloudprovider)(emitter, network=network, namespace=namespace)
+
+    hostnames = [name for name, data in deployer.get_provider_hosts()]
+    if include_hosts:
+        hostnames = include_hosts
+    emitter.echo(f"\nAbout to destroy the following: {', '.join(hostnames)}, including all local data about these nodes.")
+    emitter.echo("\ntype 'y' to continue")
+    if click.getchar(echo=False) == 'y':
+        deployer.destroy_resources(hostnames)

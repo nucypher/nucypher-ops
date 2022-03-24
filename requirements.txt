@@ -1,0 +1,7 @@
+click
+ansible
+hdwallet
+mako
+requests
+maya
+appdirs
