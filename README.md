@@ -12,6 +12,9 @@
 `pip3 install -e .`
 
 
+`nucypher-ops --help`
+
+
 `nucypher-ops nodes create --network ibex --count 1 --cloudprovider digitialocean`
 
 
