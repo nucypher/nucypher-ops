@@ -192,7 +192,8 @@ class BaseCloudNodeConfigurator:
                  cliargs=None,
                  resource_name=None,
                  eth_provider=None,
-                 docker_image=None
+                 docker_image=None,
+                 **kwargs
         ):
 
         self.emitter = emitter
@@ -200,6 +201,7 @@ class BaseCloudNodeConfigurator:
         self.namespace = namespace
         self.action = action
         self.resource_name = resource_name
+        self.kwargs = kwargs
 
         self.envvars = envvars or []
         if self.envvars:
@@ -727,7 +729,8 @@ class DigitalOceanConfigurator(BaseCloudNodeConfigurator):
 
     @property
     def instance_size(self):
-        return "s-1vcpu-2gb"
+        print (self.kwargs)
+        return self.kwargs.get('instance_type') or "s-1vcpu-2gb"
 
     @property
     def _provider_deploy_attrs(self):
@@ -1076,7 +1079,7 @@ class AWSNodeConfigurator(BaseCloudNodeConfigurator):
     def create_new_node(self, node_name):
         new_instance_data = self.ec2Client.run_instances(
             ImageId=self.EC2_AMI_LOOKUP.get(self.AWS_REGION),
-            InstanceType=self.EC2_INSTANCE_SIZE,
+            InstanceType=self.kwargs.get('instance_type', self.EC2_INSTANCE_SIZE), 
             MaxCount=1,
             MinCount=1,
             KeyName=self.keypair,
