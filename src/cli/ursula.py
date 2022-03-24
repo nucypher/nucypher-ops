@@ -48,7 +48,7 @@ class EnumMenuPromptFromDict(click.Option):
 
 @click.group('ursula')
 def cli():
-    """Manage the machinery"""
+    """deploy and update ursula nodes"""
 
 @cli.command('deploy')
 @click.option('--payment-network', cls=EnumMenuPromptFromDict, prompt=PAYMENT_NETWORK_CHOICES)

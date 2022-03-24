@@ -9,7 +9,7 @@ from src.constants import DEFAULT_NAMESPACE, DEFAULT_NETWORK
 
 @click.group('ethereum')
 def cli():
-    """Manage the machinery"""
+    """deploy and update geth nodes"""
 
 @cli.command('deploy')
 @click.option('--image', help="The geth image to deploy", default='ethereum/client-go:stable')
