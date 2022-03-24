@@ -63,13 +63,13 @@
       register: new_geth_account_checksum
       when: not account_file.stat.exists
 
-    # now remove the password.txt needed in the previous step
-    - name: "ensure password file is deleted"
-      become: yes
-      when: new_geth_account_checksum is not undefined
-      file:
-        path: "/home/nucypher/geth/password.txt"
-        state: absent
+    # # now remove the password.txt needed in the previous step
+    # - name: "ensure password file is deleted"
+    #   become: yes
+    #   when: new_geth_account_checksum is not undefined
+    #   file:
+    #     path: "/home/nucypher/geth/password.txt"
+    #     state: absent
 
     - name: "write new address to file for later use"
       become: yes
