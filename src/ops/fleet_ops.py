@@ -729,7 +729,6 @@ class DigitalOceanConfigurator(BaseCloudNodeConfigurator):
 
     @property
     def instance_size(self):
-        print (self.kwargs)
         return self.kwargs.get('instance_type') or "s-1vcpu-2gb"
 
     @property
