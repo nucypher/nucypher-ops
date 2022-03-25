@@ -476,7 +476,7 @@ class BaseCloudNodeConfigurator:
         self.update_captured_instance_data(self.output_capture)
         self.give_helpful_hints(node_names, backup=True, playbook=playbook)
 
-    def update_nucypher_on_existing_nodes(self, node_names, wipe_nucypher=False):
+    def update_nucypher_on_existing_nodes(self, node_names):
 
         playbook = Path(PLAYBOOKS).joinpath('update_remote_workers.yml')
 
@@ -496,7 +496,7 @@ class BaseCloudNodeConfigurator:
             self.config['seed_node'] = list(self.config['instances'].values())[0]['publicaddress']
             self._write_config()
 
-        self.update_generate_inventory(node_names, wipe_nucypher=wipe_nucypher)
+        self.update_generate_inventory(node_names)
 
         loader = DataLoader()
         inventory = InventoryManager(loader=loader, sources=self.inventory_path)

@@ -87,3 +87,32 @@ def deploy(payment_network, payment_provider, eth_provider, nucypher_image, seed
         emitter.echo(f'\t{name}: {hostdata["publicaddress"]}', color="yellow")
     os.environ['ANSIBLE_HOST_KEY_CHECKING'] = 'False'
     deployer.deploy_nucypher_on_existing_nodes(hostnames, migrate_nucypher=migrate)
+
+
+@cli.command('update')
+@click.option('--nucypher-image', help="The docker image containing the nucypher code to run on the remote nodes.", default=None)
+@click.option('--namespace', help="Namespace for these operations.  Used to address hosts and data locally and name hosts on cloud platforms.", type=click.STRING, default=DEFAULT_NAMESPACE)
+@click.option('--network', help="The Nucypher network name these hosts will run on.", type=click.STRING, default=DEFAULT_NETWORK)
+@click.option('--include-host', 'include_hosts', help="specify hosts to update", multiple=True, type=click.STRING)
+@click.option('--env', '-e', 'envvars', help="environment variables (ENVVAR=VALUE)", multiple=True, type=click.STRING, default=[])
+@click.option('--cli', '-c', 'cliargs', help="cli arguments for 'nucypher run': eg.'--max-gas-price 50'/'--c max-gas-price=50'", multiple=True, type=click.STRING, default=[])
+def deploy(nucypher_image, namespace, network, include_hosts, envvars, cliargs):
+    """Update images and change cli/env options on already running hosts"""
+
+    deployer = CloudDeployers.get_deployer('generic')(emitter,
+                                                      namespace=namespace,
+                                                      network=network,
+                                                      envvars=envvars,
+                                                      cliargs=cliargs,
+                                                      resource_name='nucypher',
+                                                      docker_image=nucypher_image
+                                                    )
+
+    hostnames = deployer.config['instances'].keys()
+    if include_hosts:
+        hostnames = include_hosts
+    for name, hostdata in [(n, d) for n, d in deployer.config['instances'].items() if n in hostnames]:
+        emitter.echo(f'\t{name}: {hostdata["publicaddress"]}', color="yellow")
+    os.environ['ANSIBLE_HOST_KEY_CHECKING'] = 'False'
+    deployer.update_nucypher_on_existing_nodes(hostnames)
+
