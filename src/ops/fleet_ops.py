@@ -392,7 +392,7 @@ class BaseCloudNodeConfigurator:
 
         return self.inventory_path
 
-    def create_nodes(self, node_names, unstaked=False):
+    def create_nodes(self, node_names):
         self.give_helpful_hints(node_names)
         count = len(node_names)
         self.emitter.echo(f"ensuring cloud nodes exist for the following {count} node names:")
@@ -720,6 +720,16 @@ class BaseCloudNodeConfigurator:
             return getattr(self, migration)()
 
         self.emitter.echo(f" *** Error:  Could'nt find migration from {current} to {target} ***", color="red")
+
+    def remove_resources(self, hostnames):
+        for host in hostnames:
+            existing_instances = {k: v for k, v in self.config.get('instances', {}).items() if k in hostnames}
+            if existing_instances:
+                for node_name, instance in existing_instances.items():
+                    self.emitter.echo(f"removing instance data for {node_name} in 3 seconds...", color='red')
+                    time.sleep(3)
+                    del self.config['instances'][node_name]
+                    self._write_config()
 
 
 class DigitalOceanConfigurator(BaseCloudNodeConfigurator):
@@ -1128,7 +1138,7 @@ class GenericConfigurator(BaseCloudNodeConfigurator):
 
     def _write_config(self):
         if not self.config_path.exists() and self.action not in self.NAMESSPACE_CREATE_ACTIONS:
-            raise AttributeError(f"Namespace/config '{self.namespace}' does not exist. Show existing namespaces: `nucypher cloudworkers list-namespaces` or create a namespace: `nucypher cloudworkers create`")
+            raise AttributeError(f"Namespace/config '{self.namespace}' does not exist. Show existing namespaces: `nucypher nodes list-namespaces` or create a namespace: `nucypher nodes create`")
         super()._write_config()
 
     def create_nodes(self, node_names, host_address, login_name, key_path, ssh_port):
@@ -1144,6 +1154,7 @@ class GenericConfigurator(BaseCloudNodeConfigurator):
 
             node_data['publicaddress'] = host_address
             node_data['provider'] = self.provider_name
+            node_data['index'] = len(self.config['instances'].keys())
             node_data['provider_deploy_attrs'] = [
                 {'key': 'ansible_ssh_private_key_file', 'value': key_path},
                 {'key': 'default_user', 'value': login_name},
