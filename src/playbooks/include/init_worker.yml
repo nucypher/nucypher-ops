@@ -10,6 +10,13 @@
         state: absent
       when: wipe_nucypher_config is not undefined and wipe_nucypher_config
 
+    - name: "remove existing eth wallet data"
+      become: yes
+      file:
+        path: "{{geth_dir}}"
+        state: absent
+      when: wipe_nucypher_config is not undefined and wipe_nucypher_config
+
     - name: "create geth keystore directory"
       become: yes
       file:
@@ -40,7 +47,7 @@
       become: yes
       command: 'cat {{geth_dir}}account.txt'
       register: remotely_created_account
-      when: account_file.stat.exists and NUCYPHER_WORKER_ADDRESS is undefined
+      when: account_file.stat.exists and NUCYPHER_OPERATOR_ADDRESS is undefined
 
     - name: "create password file"
       become: yes
@@ -63,13 +70,13 @@
       register: new_geth_account_checksum
       when: not account_file.stat.exists
 
-    # # now remove the password.txt needed in the previous step
-    # - name: "ensure password file is deleted"
-    #   become: yes
-    #   when: new_geth_account_checksum is not undefined
-    #   file:
-    #     path: "/home/nucypher/geth/password.txt"
-    #     state: absent
+    # now remove the password.txt needed in the previous step
+    - name: "ensure password file is deleted"
+      become: yes
+      when: new_geth_account_checksum is not undefined
+      file:
+        path: "/home/nucypher/geth/password.txt"
+        state: absent
 
     - name: "write new address to file for later use"
       become: yes
@@ -78,11 +85,11 @@
         content: "{{new_geth_account_checksum.stdout}}"
         dest: "{{geth_dir}}account.txt"
 
-    - name: "write declared worker address to file if it exists"
+    - name: "write declared operator address to file if it exists"
       become: yes
-      when: NUCYPHER_WORKER_ADDRESS is not undefined
+      when: NUCYPHER_OPERATOR_ADDRESS is not undefined
       copy:
-        content: "{{NUCYPHER_WORKER_ADDRESS}}"
+        content: "{{NUCYPHER_OPERATOR_ADDRESS}}"
         dest: "{{geth_dir}}account.txt"
 
     - name: "get account address from file"
@@ -90,11 +97,6 @@
       command: 'cat {{geth_dir}}account.txt'
       register: active_account
 
-    - name: "echo worker address"
-      debug:
-        verbosity: 0
-        msg: "{{inventory_hostname}}:worker address:{{ active_account.stdout }}"
-
-    - name: store worker address
+    - name: store operator address
       set_fact:
-        worker_address: "{{active_account.stdout}}"
+        operator_address: "{{active_account.stdout}}"

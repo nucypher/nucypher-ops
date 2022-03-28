@@ -21,7 +21,7 @@ all:
                 SEED_NODE_URI:
                 teacher_options: ""
                 %endif
-                wipe_nucypher_config: ${extra.get('migrate_nucypher', False)}
+                wipe_nucypher_config: ${extra.get('migrate_nucypher', False) or extra.get('init', False)}
                 deployer_config_path: ${deployer.config_dir}
                 restore_path: ${extra.get('restore_path')}
                 payment_network: mainnet

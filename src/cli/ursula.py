@@ -56,13 +56,14 @@ def cli():
 @click.option('--eth-provider', help="The remote blockchain provider for policies on the remote node.", required=True)
 @click.option('--nucypher-image', help="The docker image containing the nucypher code to run on the remote nodes.", default=None)
 @click.option('--seed-network', help="Do you want the 1st node to be --lonely and act as a seed node for this network", default=None, is_flag=True)
-@click.option('--migrate', help="Clear your nucypher config and start a fresh node with new keys", default=False, is_flag=True)
+@click.option('--init', help="Clear your nucypher config and start a fresh node with new keys", default=False, is_flag=True)
+@click.option('--migrate', help="Migrate nucypher nodes between compatibility breaking versions", default=False, is_flag=True)
 @click.option('--namespace', help="Namespace for these operations.  Used to address hosts and data locally and name hosts on cloud platforms.", type=click.STRING, default=DEFAULT_NAMESPACE)
 @click.option('--network', help="The Nucypher network name these hosts will run on.", type=click.STRING, default=DEFAULT_NETWORK)
 @click.option('--include-host', 'include_hosts', help="specify hosts to update", multiple=True, type=click.STRING)
 @click.option('--env', '-e', 'envvars', help="environment variables (ENVVAR=VALUE)", multiple=True, type=click.STRING, default=[])
 @click.option('--cli', '-c', 'cliargs', help="cli arguments for 'nucypher run': eg.'--max-gas-price 50'/'--c max-gas-price=50'", multiple=True, type=click.STRING, default=[])
-def deploy(payment_network, payment_provider, eth_provider, nucypher_image, seed_network, migrate,
+def deploy(payment_network, payment_provider, eth_provider, nucypher_image, seed_network, init, migrate,
            namespace, network, include_hosts, envvars, cliargs):
     """Deploys NuCypher on managed hosts."""
 
@@ -77,7 +78,7 @@ def deploy(payment_network, payment_provider, eth_provider, nucypher_image, seed
                                                       cliargs=cliargs,
                                                       resource_name='nucypher',
                                                       eth_provider=eth_provider,
-                                                      docker_image=nucypher_image
+                                                      docker_image=nucypher_image,
                                                     )
 
     hostnames = deployer.config['instances'].keys()
@@ -86,7 +87,7 @@ def deploy(payment_network, payment_provider, eth_provider, nucypher_image, seed
     for name, hostdata in [(n, d) for n, d in deployer.config['instances'].items() if n in hostnames]:
         emitter.echo(f'\t{name}: {hostdata["publicaddress"]}', color="yellow")
     os.environ['ANSIBLE_HOST_KEY_CHECKING'] = 'False'
-    deployer.deploy_nucypher_on_existing_nodes(hostnames, migrate_nucypher=migrate)
+    deployer.deploy_nucypher_on_existing_nodes(hostnames, migrate_nucypher=migrate, init=init)
 
 
 @cli.command('update')

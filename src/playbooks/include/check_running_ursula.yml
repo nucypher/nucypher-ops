@@ -55,7 +55,7 @@
           "local nickname: {{host_nickname}}\n
           {% if serving and 'json' in status_data %}nickname: {{status_data.json.nickname.text}}\n
           staker address:          {{status_data.json.staker_address}}\n
-          worker address:          {{status_data.json.operator_address}}\n
+          operator address:          {{status_data.json.operator_address}}\n
           rest url:                https://{{status_data.json.rest_url}}\n
           \tversion:               {{status_data.json.version}}\n
           \tETH:                   {{status_data.json.balance_eth}}\n{% endif %}

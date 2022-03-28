@@ -224,7 +224,7 @@ class BaseCloudNodeConfigurator:
 
         # the keys in this dict are used as search patterns by the anisble result collector and it will return
         # these values for each node if it happens upon them in some output
-        self.output_capture = {'worker address': [], 'rest url': [], 'nucypher version': [], 'nickname': []}
+        self.output_capture = {'operator address': [], 'rest url': [], 'nucypher version': [], 'nickname': []}
 
         if pre_config:
             self.config = pre_config
@@ -334,7 +334,7 @@ class BaseCloudNodeConfigurator:
         # filter out the nodes we will not be dealing with
         nodes = {key: value for key, value in self.config['instances'].items() if key in node_names}
         if not nodes:
-            raise KeyError(f"No hosts matched the supplied names: {node_names}.  Try `nucypher cloudworkers list-hosts`")
+            raise KeyError(f"No hosts matched the supplied names: {node_names}.  Try `nucypher cloudworkers list-hosts` or create new hosts with `nucypher-ops nodes create`")
 
         defaults = {
             'envvars':
@@ -346,7 +346,7 @@ class BaseCloudNodeConfigurator:
             ]
         }
 
-        if generate_keymaterial or kwargs.get('migrate_nucypher'):
+        if generate_keymaterial or kwargs.get('migrate_nucypher') or kwargs.get('init'):
             wallet = keygen.restore(self.config['keystoremnemonic'])
             keypairs = list(keygen.derive(wallet, quantity=self.instance_count))
 
@@ -375,7 +375,7 @@ class BaseCloudNodeConfigurator:
                 for k, v in defaults[datatype]:
                     if not k in nodes[key][data_key]:
                         nodes[key][data_key][k] = v
-                if generate_keymaterial or kwargs.get('migrate_nucypher'):
+                if generate_keymaterial or kwargs.get('migrate_nucypher') or kwargs.get('init'):
                     node['keymaterial'] = keypairs[node['index']][1]
 
         inventory_content = self._inventory_template.render(
@@ -386,6 +386,7 @@ class BaseCloudNodeConfigurator:
 
         with open(self.inventory_path, 'w') as outfile:
             outfile.write(inventory_content)
+            self.emitter.echo(f"wrote new inventory to: {self.inventory_path}")
 
         # now that everything rendered correctly, save how we got there.
         self._write_config()
@@ -426,10 +427,14 @@ class BaseCloudNodeConfigurator:
         template_path = Path(TEMPLATES).joinpath('ursula_inventory.mako')
         return Template(filename=str(template_path))
 
-    def deploy_nucypher_on_existing_nodes(self, node_names, migrate_nucypher=False, **kwargs):
+    def deploy_nucypher_on_existing_nodes(self, node_names, migrate_nucypher=False, init=False, **kwargs):
 
-        if migrate_nucypher:
-            self.migrate(**kwargs)
+        if migrate_nucypher or init:
+            keep_going = self.emitter.prompt("Proceeding with this operation will delete information from your nodes including wallets and keys.  Are you sure? (type 'yes')") == 'yes'
+            if not keep_going:
+                return
+            if migrate_nucypher:
+                self.migrate(**kwargs)
 
         playbook = Path(PLAYBOOKS).joinpath('setup_remote_workers.yml')
 
@@ -456,7 +461,7 @@ class BaseCloudNodeConfigurator:
             self.config['seed_node'] = list(self.config['instances'].values())[0]['publicaddress']
             self._write_config()
 
-        self.update_generate_inventory(node_names, generate_keymaterial=True, migrate_nucypher=migrate_nucypher)
+        self.update_generate_inventory(node_names, generate_keymaterial=True, migrate_nucypher=migrate_nucypher, init=init)
 
         loader = DataLoader()
         inventory = InventoryManager(loader=loader, sources=self.inventory_path)
@@ -650,6 +655,8 @@ class BaseCloudNodeConfigurator:
         raise NotImplementedError
 
     def update_captured_instance_data(self, results):
+        print ('results:', results)
+
         instances_by_public_address = {d['publicaddress']: d for d in self.config['instances'].values()}
         for k, data in results.items():
             # results are keyed by 'publicaddress' in config data
@@ -659,7 +666,6 @@ class BaseCloudNodeConfigurator:
         for k, v in self.config['instances'].items():
             if instances_by_public_address.get(v['publicaddress']):
                 self.config['instances'][k] = instances_by_public_address.get(v['publicaddress'])
-
         self._write_config()
 
     def give_helpful_hints(self, node_names, backup=False, playbook=None):
@@ -670,12 +676,8 @@ class BaseCloudNodeConfigurator:
         if self.config.get('keypair_path'):
             self.emitter.echo(f" keypair file: {self.config['keypair_path']}", color='yellow')
 
-        if playbook:
-            self.emitter.echo(" If you like, you can run the same playbook directly in ansible with the following:")
-            self.emitter.echo(f'\tansible-playbook -i "{self.inventory_path}" "{playbook}"')
-
         if nodes := [h for h in self.get_all_hosts() if h[0] in node_names]:
-            self.emitter.echo(" You may wish to ssh into your running hosts:")
+            self.emitter.echo("Host Info")
             for node_name, host_data in nodes:
                 dep = CloudDeployers.get_deployer(host_data['provider'])(
                     self.emitter,
@@ -683,11 +685,14 @@ class BaseCloudNodeConfigurator:
                     namespace=self.namespace,
                     network=self.network
                 )
-                self.emitter.echo(f"\t{dep.format_ssh_cmd(host_data)}", color="yellow")
+                self.emitter.echo(f"\t{node_name}: {host_data['publicaddress']}")
+                self.emitter.echo(f"\t\t ssh: {dep.format_ssh_cmd(host_data)}", color="yellow")
+                self.emitter.echo(f"\t\t operator address: {host_data['operator address']}")
 
         if backup:
             self.emitter.echo(" *** Local backups containing sensitive data may have been created. ***", color="red")
             self.emitter.echo(f" Backup data can be found here: {self.config_dir}/remote_worker_backups/")
+            
 
     def format_ssh_cmd(self, host_data):
         user = next(v['value'] for v in host_data['provider_deploy_attrs'] if v['key'] == 'default_user')
