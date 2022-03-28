@@ -34,8 +34,8 @@ NETWORKS = {
 
 PAYMENT_NETWORK_CHOICES = {k:k for k in ('polygon', 'mumbai')}
 
-PLAYBOOKS = 'src/playbooks'
-TEMPLATES = 'src/templates'
+PLAYBOOKS = 'nucypher_ops/playbooks'
+TEMPLATES = 'nucypher_ops/templates'
 
 
 # Environment variable names

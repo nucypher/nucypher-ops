@@ -2,9 +2,9 @@ import os
 import click
 emitter = click
 
-from src.ops.fleet_ops import CloudDeployers
+from nucypher_ops.ops.fleet_ops import CloudDeployers
 
-from src.constants import DEFAULT_NAMESPACE, DEFAULT_NETWORK, PAYMENT_NETWORK_CHOICES
+from nucypher_ops.constants import DEFAULT_NAMESPACE, DEFAULT_NETWORK, PAYMENT_NETWORK_CHOICES
 
 
 class EnumMenuPromptFromDict(click.Option):
@@ -117,3 +117,18 @@ def deploy(nucypher_image, namespace, network, include_hosts, envvars, cliargs):
     os.environ['ANSIBLE_HOST_KEY_CHECKING'] = 'False'
     deployer.update_nucypher_on_existing_nodes(hostnames)
 
+
+@cli.command('status')
+@click.option('--namespace', help="Namespace for these operations.  Used to address hosts and data locally and name hosts on cloud platforms.", type=click.STRING, default=DEFAULT_NAMESPACE)
+@click.option('--network', help="The Nucypher network name these hosts will run on.", type=click.STRING, default=DEFAULT_NETWORK)
+@click.option('--include-host', 'include_hosts', help="Query status on only the named hosts", multiple=True, type=click.STRING)
+def status(namespace, network, include_hosts):
+    """Displays ursula status and updates worker data in stakeholder config"""
+
+    deployer = CloudDeployers.get_deployer('generic')(emitter, namespace=namespace, network=network)
+
+    hostnames = deployer.config['instances'].keys()
+    if include_hosts:
+        hostnames = include_hosts
+
+    deployer.get_worker_status(hostnames)

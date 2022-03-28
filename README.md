@@ -5,7 +5,7 @@
 
 
 #### quickstart
-`git clone git@github.com:nucypher/nucypher-ops.git`
+`git clone git@github.com:nucypher/nucypher_ops.git`
 
 `cd nucypher-ops`
 

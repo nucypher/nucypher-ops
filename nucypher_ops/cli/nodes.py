@@ -2,9 +2,9 @@ import os
 import click
 emitter = click
 
-from src.ops.fleet_ops import CloudDeployers
+from nucypher_ops.ops.fleet_ops import CloudDeployers
 
-from src.constants import DEFAULT_NAMESPACE, DEFAULT_NETWORK
+from nucypher_ops.constants import DEFAULT_NAMESPACE, DEFAULT_NETWORK
 
 
 @click.group('nodes')

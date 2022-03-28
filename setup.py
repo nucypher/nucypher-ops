@@ -16,6 +16,6 @@ setup(
     ],
     entry_points='''
         [console_scripts]
-        nucypher-ops=src.cli.main:index
+        nucypher-ops=nucypher_ops.cli.main:index
     ''',
 )
