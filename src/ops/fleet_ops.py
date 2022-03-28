@@ -1175,6 +1175,7 @@ class GenericConfigurator(BaseCloudNodeConfigurator):
         return self.config
 
     def deploy_image_on_existing_nodes(self, hosts, resource):
+        self.emitter.echo("this feature is a work in progress")
         pass
 
 

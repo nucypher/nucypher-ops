@@ -22,10 +22,7 @@ def deploy(image, namespace, network, include_hosts, envvars, cliargs):
     """Deploys NuCypher on managed hosts."""
 
     deployer = CloudDeployers.get_deployer('generic')(emitter,
-                                                      None,  # TODO:  Why 'None' here?  (overtly implicit)
-                                                      None,  # TODO: Convert to kwargs usage for maintainability.
-                                                      None,
-                                                      image,
+                                                      docker_image=image,
                                                       namespace=namespace,
                                                       network=network,
                                                       envvars=envvars,

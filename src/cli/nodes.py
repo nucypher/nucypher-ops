@@ -82,7 +82,7 @@ def list(network, namespace):
 @click.option('--network', help="The Nucypher network name these hosts will run on.", type=click.STRING, default=DEFAULT_NETWORK)
 @click.option('--include-host', 'include_hosts', help="destroy only the named hosts", multiple=True, type=click.STRING)
 def destroy(cloudprovider, namespace, network, include_hosts):
-    """Cleans up all previously created resources for the given netork for the cloud providern"""
+    """Cleans up all previously created resources for the given network for the same cloud provider"""
 
     if not cloudprovider:
         hosts = CloudDeployers.get_deployer('generic')(emitter, network=network, namespace=namespace).get_all_hosts()
