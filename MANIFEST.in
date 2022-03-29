@@ -1,0 +1,4 @@
+include README.md
+include LICENSE
+recursive-include nucypher_ops *
+global-exclude .DS_Store
