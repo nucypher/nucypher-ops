@@ -34,9 +34,10 @@ NETWORKS = {
 
 PAYMENT_NETWORK_CHOICES = {k:k for k in ('polygon', 'mumbai')}
 
-PLAYBOOKS = 'nucypher_ops/playbooks'
-TEMPLATES = 'nucypher_ops/templates'
+BASE_DIR = os.path.dirname(__file__)
 
+PLAYBOOKS = os.path.join(BASE_DIR, 'playbooks')
+TEMPLATES = os.path.join(BASE_DIR, 'templates')
 
 # Environment variable names
 NUCYPHER_ENVVAR_KEYSTORE_PASSWORD = "NUCYPHER_KEYSTORE_PASSWORD"
