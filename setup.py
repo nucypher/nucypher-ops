@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from setuptools import setup
+from setuptools import setup, find_packages
 from pathlib import Path
 from typing import Dict
 
@@ -32,7 +32,8 @@ PYPI_CLASSIFIERS = [
 ]
 
 setup(
-    py_modules=['nucypher_ops'],
+    packages=find_packages(),
+    include_package_data=True,
     name=ABOUT['__title__'],
     url=ABOUT['__url__'],
     version=ABOUT['__version__'],
