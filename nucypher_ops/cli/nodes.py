@@ -15,12 +15,11 @@ def cli():
 @cli.command('create')
 @click.option('--instance-type', help="provider specific instance size like `s-1vcpu-2gb` or `t3.small`", default=None)
 @click.option('--cloudprovider', help="aws or digitalocean", default='aws')
-@click.option('--aws-profile', help="The AWS account profile you'd like to use (option not required for DigitalOcean users)", default=None)
 @click.option('--count', help="Create this many nodes.", type=click.INT, default=1)
 @click.option('--namespace', help="Namespace for these operations.  Used to address hosts and data locally and name hosts on cloud platforms.", type=click.STRING, default=DEFAULT_NAMESPACE)
 @click.option('--nickname', help="A nickname by which to remember the created hosts", type=click.STRING, required=False)
 @click.option('--network', help="The Nucypher network name these hosts will run on.", type=click.STRING, default=DEFAULT_NETWORK)
-def create(instance_type, cloudprovider, aws_profile, count, nickname, namespace, network):
+def create(instance_type, cloudprovider, count, nickname, namespace, network):
     """Creates the required number of workers to be staked later under a namespace"""
 
     if cloudprovider == 'aws':
@@ -30,7 +29,7 @@ def create(instance_type, cloudprovider, aws_profile, count, nickname, namespace
             raise click.BadOptionUsage('cloudprovider', "You must have boto3 installed to create aws nodes. run `pip install boto3` or use `--cloudprovider digitalocean`")
 
     deployer = CloudDeployers.get_deployer(cloudprovider)(emitter, 
-        profile=aws_profile, namespace=namespace, network=network, instance_type=instance_type)
+         namespace=namespace, network=network, instance_type=instance_type, action='create')
 
     names = []
     i = 1

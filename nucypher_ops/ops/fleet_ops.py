@@ -17,11 +17,11 @@
 
 import copy
 import json
-import resource
+
+import pkgutil
 
 import maya
 import os
-import re
 import requests
 import time
 from ansible.executor.playbook_executor import PlaybookExecutor
@@ -41,33 +41,22 @@ from nucypher_ops.constants import (
     NUCYPHER_ENVVAR_OPERATOR_ETH_PASSWORD
 )
 
-
-# from nucypher.blockchain.eth.networks import NetworksInventory
-# from nucypher.config.constants import DEFAULT_CONFIG_ROOT, PLAYBOOKS, NUCYPHER_ENVVAR_KEYSTORE_PASSWORD, \
-#     NUCYPHER_ENVVAR_OPERATOR_ETH_PASSWORD
 from nucypher_ops.ops import keygen
 
+try:
+    import boto3
+except ImportError:
+    pass
+
 NODE_CONFIG_STORAGE_KEY = 'configs'
-URSULA_PORT = 9151
-PROMETHEUS_PORTS = [9101]
-
-
-
-# key material params
-STRENGTH: int = 160  # Default is 128
-LANGUAGE: str = "english"  # Default is english
-
 
 class BaseCloudNodeConfigurator:
 
-    NAMESSPACE_CREATE_ACTIONS = ['add', 'create', 'up', 'add_for_stake']
-
-    PROMETHEUS_PORT = PROMETHEUS_PORTS[0]
+    NAMESSPACE_CREATE_ACTIONS = ['add', 'create']
 
     def __init__(self,  # TODO: Add type annotations
                  emitter,
                  seed_network=None,
-                 profile=None,
                  pre_config=False,
                  network=None,
                  namespace=None,
@@ -147,7 +136,7 @@ class BaseCloudNodeConfigurator:
             self.alert_new_mnemonic(wallet)
             self._write_config()
         # configure provider specific attributes
-        self._configure_provider_params(profile)
+        self._configure_provider_params()
 
         # if certain config options have been specified with this invocation,
         # save these to update host specific variables before deployment
@@ -188,7 +177,7 @@ class BaseCloudNodeConfigurator:
     def _provider_deploy_attrs(self):
         return []
 
-    def _configure_provider_params(self, provider_profile):
+    def _configure_provider_params(self):
         pass
 
     def _do_setup_for_instance_creation(self):
@@ -634,7 +623,7 @@ class DigitalOceanConfigurator(BaseCloudNodeConfigurator):
             {'key': 'default_user', 'value': 'root'},
         ]
 
-    def _configure_provider_params(self, provider_profile):
+    def _configure_provider_params(self):
         self.token = os.environ.get('DIGITALOCEAN_ACCESS_TOKEN')
         if not self.token:
             self.emitter.echo(f"Please `export DIGITALOCEAN_ACCESS_TOKEN=<your access token.>` from here:  https://cloud.digitalocean.com/account/api/tokens\n", color="red")
@@ -731,16 +720,18 @@ class DigitalOceanConfigurator(BaseCloudNodeConfigurator):
 
 class AWSNodeConfigurator(BaseCloudNodeConfigurator):
 
+    URSULA_PORT = 9151
+    PROMETHEUS_PORTS = [9101]
+    PROMETHEUS_PORT = PROMETHEUS_PORTS[0]
+
     """
     gets a node up and running.
     """
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        import boto3
 
     provider_name = 'aws'
-    EC2_INSTANCE_SIZE = 't3.small'
 
     # TODO: this probably needs to be region specific...
     EC2_AMI_LOOKUP = {
@@ -762,41 +753,72 @@ class AWSNodeConfigurator(BaseCloudNodeConfigurator):
             {'key': 'default_user', 'value': 'ubuntu'}
         ]
 
-    def _configure_provider_params(self, provider_profile):
+    def _configure_provider_params(self):
 
         # some attributes we will configure later
         self.vpc = None
         # find aws profiles on user's local environment
-        profiles = boto3.session.Session().available_profiles
+        available_profiles = boto3.session.Session().available_profiles
+        choice_list = '\n\t'.join(available_profiles)
 
-        self.profile = provider_profile or self.config.get('profile')
+        self.profile = self.config.get('aws-profile') or os.getenv('AWS_PROFILE')
         if not self.profile:
-            self.emitter.echo("Aws nodes can only be managed with an aws profile. (https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-profiles.html)", color='red')
-            raise AttributeError("AWS profile not configured.")
-        self.emitter.echo(f'using profile: {self.profile}')
-        if self.profile in profiles:
-            self.AWS_REGION = self.config.get('aws-region') or os.environ.get('AWS_DEFAULT_REGION') or 'us-east-1'
-            message = ''
-            if not self.config.get('aws-region') or os.environ.get('AWS_DEFAULT_REGION'):
-                message = "Override this by setting environment variable: AWS_DEFAULT_REGION"
-            self.emitter.echo(f"Using AWS Region: {self.AWS_REGION}. {message}",  color='yellow')
-            self.session = boto3.Session(profile_name=self.profile, region_name=self.AWS_REGION)
+            self.profile = self.emitter.prompt(
+                f"please select an AWS profile from the following options: \n{choice_list}",
+                type=self.emitter.Choice(available_profiles),
+                show_choices=False
+            )
 
-            self.ec2Client = self.session.client('ec2')
-            self.ec2Resource = self.session.resource('ec2')
-        else:
-            if profiles:
-                self.emitter.echo(f"please select a profile (--aws-profile) from your aws profiles: {profiles}", color='red')
-            else:
-                self.emitter.echo(f"no aws profiles could be found. Ensure aws is installed and configured: https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2.html", color='red')
-        if self.profile:
-            self.config['profile'] = self.profile
+        self.emitter.echo(f'using profile: {self.profile}')
+
+        ec2 = boto3.client('ec2')
+
+        self.AWS_REGION = self.config.get('aws-region') or os.environ.get('AWS_DEFAULT_REGION')
+        if not self.AWS_REGION:    
+            available_regions = [r['RegionName'] for r in ec2.describe_regions()['Regions']]
+            region_choice_list = '\n\t'.join(available_regions)
+            self.AWS_REGION = self.emitter.prompt(
+                f"please select an AWS region from the following regions: {region_choice_list}\n",
+                type=self.emitter.Choice(available_regions),
+                show_choices=False
+            )
+
+        self.EC2_INSTANCE_SIZE = self.kwargs.get('instance_type')
+        
+        if self.action == 'create':
+            if self.EC2_INSTANCE_SIZE is None:
+                instance_types = ec2.describe_instance_type_offerings(
+                    # LocationType = 'region',
+                    Filters = [
+                        {'Values': ['t1.*', 't2.*', 't3.*', 't3a.*'], 'Name': 'instance-type'},
+                        # {'Values': [self.AWS_REGION], 'Name': 'location'}
+                    ]
+                )['InstanceTypeOfferings']
+
+                
+                instance_type_choices = sorted([r['InstanceType'] for r in instance_types])
+                instance_type_choice_list = '\n\t'.join(instance_type_choices)
+                self.EC2_INSTANCE_SIZE = self.emitter.prompt(
+                    f"please select an instance type from the following choices:\n\t{instance_type_choice_list}\n",
+                    type=self.emitter.Choice(instance_type_choices),
+                    show_choices=False
+                )
+            
+            self.emitter.echo(f"Instance type: {self.EC2_INSTANCE_SIZE}")
+
+        self.emitter.echo(f"AWS Region: {self.AWS_REGION}")
+        self.session = boto3.Session(profile_name=self.profile, region_name=self.AWS_REGION)
+        self.ec2Client = self.session.client('ec2')
+        self.ec2Resource = self.session.resource('ec2')
+
+        self.config['aws-profile'] = self.profile
 
         self.keypair = self.config.get('keypair')
         if not self.keypair:
             self.keypair, keypair_path = self._create_keypair()
             self.config['keypair_path'] = str(keypair_path)
 
+        self.config['aws-profile'] = self.profile
         self.config['keypair'] = self.keypair
         self.config['aws-region'] = self.AWS_REGION
         self._write_config()
@@ -810,6 +832,7 @@ class AWSNodeConfigurator(BaseCloudNodeConfigurator):
         new_keypair_data = self.ec2Client.create_key_pair(KeyName=f'{self.namespace_network}')
         out_path = DEFAULT_CONFIG_ROOT / NODE_CONFIG_STORAGE_KEY / f'{self.namespace_network}.awskeypair'
         out_path.parent.mkdir(parents=True, exist_ok=True)
+        print ('out_path', out_path)
         with open(out_path, 'w') as outfile:
             outfile.write(new_keypair_data['KeyMaterial'])
         # set local keypair permissions https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-key-pairs.html
@@ -895,8 +918,8 @@ class AWSNodeConfigurator(BaseCloudNodeConfigurator):
 
             securitygroup.authorize_ingress(CidrIp='0.0.0.0/0', IpProtocol='tcp', FromPort=22, ToPort=22)
             # TODO: is it always 9151?  Does that matter? Should this be configurable?
-            securitygroup.authorize_ingress(CidrIp='0.0.0.0/0', IpProtocol='tcp', FromPort=URSULA_PORT, ToPort=URSULA_PORT)
-            for port in PROMETHEUS_PORTS:
+            securitygroup.authorize_ingress(CidrIp='0.0.0.0/0', IpProtocol='tcp', FromPort=self.URSULA_PORT, ToPort=self.URSULA_PORT)
+            for port in self.PROMETHEUS_PORTS:
                 securitygroup.authorize_ingress(CidrIp='0.0.0.0/0', IpProtocol='tcp', FromPort=port, ToPort=port)
 
     def _do_setup_for_instance_creation(self):
@@ -935,6 +958,7 @@ class AWSNodeConfigurator(BaseCloudNodeConfigurator):
             for subresource in ['Subnet', 'RouteTable', 'SecurityGroup']:
                 tries = 0
                 while self.config.get(subresource) and tries < 10:
+                    self.emitter.echo(f'deleting {subresource}')
                     try:
                         getattr(self.ec2Resource, subresource)(self.config[subresource]).delete()
                         self.emitter.echo(f'deleted {subresource}: {self.config[subresource]}')
@@ -966,19 +990,18 @@ class AWSNodeConfigurator(BaseCloudNodeConfigurator):
                 time.sleep(6)
                 self.ec2Client.delete_key_pair(KeyName=self.config.get('keypair'))
                 del self.config['keypair']
-                self.config['keypair_path'].unlink()
+                Path(self.config['keypair_path']).unlink()
                 del self.config['keypair_path']
                 self._write_config()
 
         return True
 
     def create_new_node(self, node_name):
-        new_instance_data = self.ec2Client.run_instances(
+
+        params = dict(
             ImageId=self.EC2_AMI_LOOKUP.get(self.AWS_REGION),
-            InstanceType=self.kwargs.get('instance_type', self.EC2_INSTANCE_SIZE), 
-            MaxCount=1,
-            MinCount=1,
-            KeyName=self.keypair,
+            InstanceType=self.EC2_INSTANCE_SIZE,
+            KeyName=self.keypair, 
             NetworkInterfaces=[
                 {
                     'AssociatePublicIpAddress': True,
@@ -1001,6 +1024,11 @@ class AWSNodeConfigurator(BaseCloudNodeConfigurator):
                     ]
                 },
             ],
+        )
+        new_instance_data = self.ec2Client.run_instances(     
+            MaxCount=1,
+            MinCount=1,
+            **params
         )
 
         node_data = {'InstanceId': new_instance_data['Instances'][0]['InstanceId']}
@@ -1029,7 +1057,6 @@ class GenericConfigurator(BaseCloudNodeConfigurator):
         super()._write_config()
 
     def create_nodes(self, node_names, host_address, login_name, key_path, ssh_port):
-
         if not self.config.get('instances'):
             self.config['instances'] = {}
 
