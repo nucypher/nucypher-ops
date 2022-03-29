@@ -1,21 +1,14 @@
-## nucypher-ops
-
----work in progress---
+# nucypher-ops
 
 
-
-#### quickstart
-`git clone git@github.com:nucypher/nucypher_ops.git`
-
-`cd nucypher-ops`
-
-`pip3 install -e .`
-
+## install
+`pip3 install nucypher-ops`
 
 `nucypher-ops --help`
 
 
-`nucypher-ops nodes create --network ibex --count 1 --cloudprovider digitialocean`
+## hello world 
+`nucypher-ops nodes create --cloudprovider aws|digitalocean`
 
+`nucypher-ops ursula deploy --eth-provider https://<some eth node>  --payment-provider https://<some polygon provider>`
 
-`nucypher-ops ursula deploy --eth-provider https://rinkeby.infura.io/v3/7c1fc379aba44e1395dc629e4a734554 --nucypher-image nucypher/nucypher:airship  --payment-provider https://polygon-mumbai.infura.io/v3/7c1fc379aba44e1395dc629e4a734554 --network ibex` 
