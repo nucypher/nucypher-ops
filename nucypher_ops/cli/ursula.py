@@ -52,9 +52,9 @@ def cli():
 
 @cli.command('deploy')
 @click.option('--payment-network', cls=EnumMenuPromptFromDict, prompt=PAYMENT_NETWORK_CHOICES)
-@click.option('--payment-provider', help="The remote blockchain provider for the payment network.", required=True)
-@click.option('--eth-provider', help="The remote blockchain provider for policies on the remote node.", required=True)
-@click.option('--nucypher-image', help="The docker image containing the nucypher code to run on the remote nodes.", default=None)
+@click.option('--payment-provider', help="The remote blockchain provider for the payment network.", default=None)
+@click.option('--eth-provider', help="The remote blockchain provider for policies on the remote node.", default=None)
+@click.option('--nucypher-image', help="The docker image containing the nucypher code to run on the remote nodes.", default='nucypher/nucypher:latest')
 @click.option('--seed-network', help="Do you want the 1st node to be --lonely and act as a seed node for this network", default=None, is_flag=True)
 @click.option('--init', help="Clear your nucypher config and start a fresh node with new keys", default=False, is_flag=True)
 @click.option('--migrate', help="Migrate nucypher nodes between compatibility breaking versions", default=False, is_flag=True)
@@ -67,9 +67,6 @@ def deploy(payment_network, payment_provider, eth_provider, nucypher_image, seed
            namespace, network, include_hosts, envvars, cliargs):
     """Deploys NuCypher on managed hosts."""
 
-
-    cliargs = list(cliargs) + [f'payment-network={payment_network}', f'payment-provider={payment_provider}']
-    print (cliargs)
     deployer = CloudDeployers.get_deployer('generic')(emitter,
                                                       seed_network=seed_network,
                                                       namespace=namespace,
@@ -79,6 +76,8 @@ def deploy(payment_network, payment_provider, eth_provider, nucypher_image, seed
                                                       resource_name='nucypher',
                                                       eth_provider=eth_provider,
                                                       docker_image=nucypher_image,
+                                                      payment_provider=payment_provider,
+                                                      payment_network=payment_network
                                                     )
 
     hostnames = deployer.config['instances'].keys()

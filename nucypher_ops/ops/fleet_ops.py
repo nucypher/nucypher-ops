@@ -143,12 +143,21 @@ class BaseCloudNodeConfigurator:
         # to allow for individual host config differentiation
         self.host_level_overrides = {
             'eth_provider': eth_provider,
+            'payment_provider': self.kwargs.get('payment_provider'),
             'docker_image': docker_image,
+        }
+
+        self.host_level_override_prompts = {
+            'eth_provider': "--eth-provider: please provide the url of a hosted ethereum node (infura/geth) which your nodes can access",
+            'payment_provider': "--payment-provider: please provide the url of a hosted level-two node (infura/bor) which your nodes can access",
         }
 
         self.config['seed_network'] = seed_network if seed_network is not None else self.config.get('seed_network')
         if not self.config['seed_network']:
             self.config.pop('seed_node', None)
+        
+        if self.kwargs.get('payment_network'):
+            self.config['payment_network'] = self.kwargs.get('payment_network')
 
         # add instance key as host_nickname for use in inventory
         if self.config.get('instances'):
@@ -300,6 +309,35 @@ class BaseCloudNodeConfigurator:
         template_path = Path(TEMPLATES).joinpath('ursula_inventory.mako')
         return Template(filename=str(template_path))
 
+    def configure_host_level_overrides(self, node_names):
+        # first update any specified input in our node config
+
+        input_values = {}
+        for k, input_specified_value in self.host_level_overrides.items():
+            for node_name in node_names:
+                # if an instance already has a specified value, we only override
+                # it if that value was input for this command invocation
+                if input_specified_value:
+                    self.config['instances'][node_name][k] = input_specified_value
+
+                # if this node has not already been configured with this info
+                elif not self.config['instances'][node_name].get(k):
+                    # do we have it in our global config?
+                    if self.config.get(k):
+                        self.config['instances'][node_name][k] = self.config.get(k)
+
+                    # have we already prompted the user for this info?
+                    elif input_values.get(k):
+                        self.config['instances'][node_name][k] = input_values[k]
+
+                    # if not, prompt the user.
+                    else:
+                        input_values[k] = self.emitter.prompt(self.host_level_override_prompts[k])
+                        self.config['instances'][node_name][k] = input_values[k]
+
+                self._write_config()
+        
+
     def deploy_nucypher_on_existing_nodes(self, node_names, migrate_nucypher=False, init=False, **kwargs):
 
         if migrate_nucypher or init:
@@ -311,17 +349,7 @@ class BaseCloudNodeConfigurator:
 
         playbook = Path(PLAYBOOKS).joinpath('setup_remote_workers.yml')
 
-        # first update any specified input in our node config
-        for k, input_specified_value in self.host_level_overrides.items():
-            for node_name in node_names:
-                if self.config['instances'].get(node_name):
-                    # if an instance already has a specified value, we only override
-                    # it if that value was input for this command invocation
-                    if input_specified_value:
-                        self.config['instances'][node_name][k] = input_specified_value
-                    elif not self.config['instances'][node_name].get(k):
-                        self.config['instances'][node_name][k] = self.config[k]
-                    self._write_config()
+        self.configure_host_level_overrides(node_names)
 
         if self.created_new_nodes:
             self.emitter.echo("--- Giving newly created nodes some time to get ready ----")
@@ -358,17 +386,7 @@ class BaseCloudNodeConfigurator:
 
         playbook = Path(PLAYBOOKS).joinpath('update_remote_workers.yml')
 
-        # first update any specified input in our node config
-        for k, input_specified_value in self.host_level_overrides.items():
-            for node_name in node_names:
-                if self.config['instances'].get(node_name):
-                    # if an instance already has a specified value, we only override
-                    # it if that value was input for this command invocation
-                    if input_specified_value:
-                        self.config['instances'][node_name][k] = input_specified_value
-                    elif not self.config['instances'][node_name].get(k):
-                        self.config['instances'][node_name][k] = self.config[k]
-                    self._write_config()
+        self.configure_host_level_overrides(node_names)
 
         if self.config.get('seed_network') is True and not self.config.get('seed_node'):
             self.config['seed_node'] = list(self.config['instances'].values())[0]['publicaddress']

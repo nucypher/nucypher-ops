@@ -24,8 +24,7 @@ all:
                 wipe_nucypher_config: ${extra.get('migrate_nucypher', False) or extra.get('init', False)}
                 deployer_config_path: ${deployer.config_dir}
                 restore_path: ${extra.get('restore_path')}
-                payment_network: mainnet
-                payment_provider: https://polygon-mainnet.infura.io/v3/7c1fc379aba44e1395dc629e4a734554
+                payment_network: ${deployer.config['payment_network']}
               hosts:
                 %for node in nodes:
                 ${node['publicaddress']}:
@@ -35,6 +34,9 @@ all:
                   %endfor
                   % if node.get('eth_provider'):
                   eth_provider: ${node['eth_provider']}
+                  %endif
+                  % if node.get('payment_provider'):
+                  payment_provider: ${node['payment_provider']}
                   %endif
                   %if node.get('docker_image'):
                   docker_image: ${node['docker_image']}
