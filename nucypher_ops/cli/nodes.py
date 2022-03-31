@@ -1,10 +1,8 @@
+from nucypher_ops.constants import DEFAULT_NAMESPACE, DEFAULT_NETWORK, NETWORKS
+from nucypher_ops.ops.fleet_ops import CloudDeployers
 import os
 import click
 emitter = click
-
-from nucypher_ops.ops.fleet_ops import CloudDeployers
-
-from nucypher_ops.constants import DEFAULT_NAMESPACE, DEFAULT_NETWORK
 
 
 @click.group('nodes')
@@ -13,23 +11,25 @@ def cli():
 
 
 @cli.command('create')
+@click.option('--region', help="provider specific region name (like us-east-1 or SFO3", default=None)
 @click.option('--instance-type', help="provider specific instance size like `s-1vcpu-2gb` or `t3.small`", default=None)
 @click.option('--cloudprovider', help="aws or digitalocean", default='aws')
 @click.option('--count', help="Create this many nodes.", type=click.INT, default=1)
 @click.option('--namespace', help="Namespace for these operations.  Used to address hosts and data locally and name hosts on cloud platforms.", type=click.STRING, default=DEFAULT_NAMESPACE)
 @click.option('--nickname', help="A nickname by which to remember the created hosts", type=click.STRING, required=False)
 @click.option('--network', help="The Nucypher network name these hosts will run on.", type=click.STRING, default=DEFAULT_NETWORK)
-def create(instance_type, cloudprovider, count, nickname, namespace, network):
+def create(region, instance_type, cloudprovider, count, nickname, namespace, network):
     """Creates the required number of workers to be staked later under a namespace"""
 
     if cloudprovider == 'aws':
         try:
             import boto3
         except ImportError:
-            raise click.BadOptionUsage('cloudprovider', "You must have boto3 installed to create aws nodes. run `pip install boto3` or use `--cloudprovider digitalocean`")
+            raise click.BadOptionUsage(
+                'cloudprovider', "You must have boto3 installed to create aws nodes. run `pip install boto3` or use `--cloudprovider digitalocean`")
 
-    deployer = CloudDeployers.get_deployer(cloudprovider)(emitter, 
-         namespace=namespace, network=network, instance_type=instance_type, action='create')
+    deployer = CloudDeployers.get_deployer(cloudprovider)(emitter,
+                                                          namespace=namespace, network=network, instance_type=instance_type, action='create', region=region)
 
     names = []
     i = 1
@@ -39,7 +39,8 @@ def create(instance_type, cloudprovider, count, nickname, namespace, network):
             names.append(name)
         i += 1
     deployer.create_nodes(names)
-    emitter.echo(f"done.  created {count} nodes.  list existing nodes with `nucypher-ops nodes list`")
+    emitter.echo(
+        f"done.  created {count} nodes.  list existing nodes with `nucypher-ops nodes list`")
 
 
 @cli.command('add')
@@ -55,24 +56,35 @@ def add(host_address, login_name, key_path, ssh_port, nickname, namespace, netwo
 
     name = nickname
 
-    deployer = CloudDeployers.get_deployer('generic')(emitter, None, None, namespace=namespace, network=network, action='add')
+    deployer = CloudDeployers.get_deployer('generic')(
+        emitter, None, None, namespace=namespace, network=network, action='add')
     deployer.create_nodes([name], host_address, login_name, key_path, ssh_port)
-    
+
 
 @cli.command('list')
-@click.option('--network', help="The network whose hosts you want to see.", type=click.STRING, default=DEFAULT_NETWORK)
+@click.option('--network', help="The network whose hosts you want to see.", type=click.STRING, default=None)
 @click.option('--namespace', help="The network whose hosts you want to see.", type=click.STRING, default=DEFAULT_NAMESPACE)
 def list(network, namespace):
     """Prints local config info about known hosts"""
 
-    deployer = CloudDeployers.get_deployer('generic')(emitter, network=network, namespace=namespace)
-    hosts = deployer.get_all_hosts()
-    if not hosts:
-        emitter.echo(f"No nodes in the {network}/{namespace} namespace")
-    for name, data in hosts:
-        emitter.echo(name)
-        for k, v in data.items():
-            emitter.echo(f"\t{k}: {v}")
+    if not network:
+        networks = NETWORKS.keys()
+    else:
+        networks = [network]
+
+    for network in networks:
+        emitter.echo(network)
+        deployer = CloudDeployers.get_deployer('generic')(
+            emitter, network=network, namespace=namespace, read_only=True)
+        if deployer.config_path.exists():
+            hosts = deployer.get_all_hosts()
+            if not hosts:
+                emitter.echo(
+                    f"No nodes in the {network}/{namespace} namespace")
+            for name, data in hosts:
+                emitter.echo(name)
+                for k, v in data.items():
+                    emitter.echo(f"\t{k}: {v}")
 
 
 @cli.command('destroy')
@@ -84,22 +96,24 @@ def destroy(cloudprovider, namespace, network, include_hosts):
     """Cleans up all previously created resources for the given network for the same cloud provider"""
 
     if not cloudprovider:
-        hosts = CloudDeployers.get_deployer('generic')(emitter, network=network, namespace=namespace).get_all_hosts()
-        if len(set(host['provider'] for address, host in hosts)) == 1: # check if there are hosts in this namespace
+        hosts = CloudDeployers.get_deployer('generic')(
+            emitter, network=network, namespace=namespace).get_all_hosts()
+        # check if there are hosts in this namespace
+        if len(set(host['provider'] for address, host in hosts)) == 1:
             cloudprovider = hosts[0][1]['provider']
         else:
             emitter.echo("Found hosts from multiple cloudproviders.")
-            emitter.echo("We can only destroy hosts from one cloudprovider at a time.")
-            emitter.echo("Please specify which provider's hosts you'd like to destroy using --cloudprovider (digitalocean or aws)")
+            emitter.echo(
+                "We can only destroy hosts from one cloudprovider at a time.")
+            emitter.echo(
+                "Please specify which provider's hosts you'd like to destroy using --cloudprovider (digitalocean or aws)")
             return
-    deployer = CloudDeployers.get_deployer(cloudprovider)(emitter, network=network, namespace=namespace)
+    deployer = CloudDeployers.get_deployer(cloudprovider)(
+        emitter, network=network, namespace=namespace)
 
     hostnames = [name for name, data in deployer.get_provider_hosts()]
     if include_hosts:
         hostnames = include_hosts
-    emitter.echo(f"\nAbout to destroy the following: {', '.join(hostnames)}, including all local data about these nodes.")
-    emitter.echo("\ntype 'y' to continue")
-    if click.getchar(echo=False) == 'y':
         deployer.destroy_resources(hostnames)
 
 
@@ -110,12 +124,14 @@ def destroy(cloudprovider, namespace, network, include_hosts):
 def remove(namespace, network, include_hosts):
     """Removes managed resources for the given network/namespace"""
 
-    deployer = CloudDeployers.get_deployer('generic')(emitter, network=network, namespace=namespace)
+    deployer = CloudDeployers.get_deployer('generic')(
+        emitter, network=network, namespace=namespace)
 
     hostnames = [name for name, data in deployer.get_all_hosts()]
     if include_hosts:
         hostnames = include_hosts
-    emitter.echo(f"\nAbout to remove information about the following: {', '.join(hostnames)}, including all local data about these nodes.")
+    emitter.echo(
+        f"\nAbout to remove information about the following: {', '.join(hostnames)}, including all local data about these nodes.")
     emitter.echo("\ntype 'y' to continue")
     if click.getchar(echo=False) == 'y':
         deployer.remove_resources(hostnames)

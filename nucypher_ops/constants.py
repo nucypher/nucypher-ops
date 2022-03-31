@@ -3,7 +3,8 @@ from appdirs import AppDirs
 from pathlib import Path
 
 APP_DIR = AppDirs("nucypher-ops")
-DEFAULT_CONFIG_ROOT = Path(os.getenv('NUCYPHER_OPS_CONFIG_ROOT', default=APP_DIR.user_data_dir))
+DEFAULT_CONFIG_ROOT = Path(
+    os.getenv('NUCYPHER_OPS_CONFIG_ROOT', default=APP_DIR.user_data_dir))
 
 MAINNET = 1
 ROPSTEN = 3
@@ -26,13 +27,14 @@ CHAIN_NAMES = {
 REVERSE_LOOKUP_CHAIN_NAMES = {v: k for k, v in CHAIN_NAMES.items()}
 
 
-NETWORKS = { 
+NETWORKS = {
     'mainnet': {'policy': MAINNET, 'payment': POLYGON_MAINNET},
     'ibex': {'policy': RINKEBY, 'payment': POLYGON_MUMBAI},
     'lynx': {'policy': GOERLI, 'payment': POLYGON_MUMBAI}
 }
 
-PAYMENT_NETWORK_CHOICES = {k:k for k in ('polygon', 'mumbai')}
+PAYMENT_NETWORKS = ('polygon', 'mumbai')
+PAYMENT_NETWORK_CHOICES = '\n\t'.join(PAYMENT_NETWORKS)
 
 BASE_DIR = os.path.dirname(__file__)
 
@@ -45,5 +47,5 @@ NUCYPHER_ENVVAR_OPERATOR_ADDRESS = "NUCYPHER_OPERATOR_ADDRESS"
 NUCYPHER_ENVVAR_OPERATOR_ETH_PASSWORD = "NUCYPHER_OPERATOR_ETH_PASSWORD"
 NUCYPHER_ENVVAR_PROVIDER_URI = "NUCYPHER_PROVIDER_URI"
 
-DEFAULT_NAMESPACE=os.getenv('NUCYPHER_OPS_DEFAULT_NAMESPACE', 'nucypher')
-DEFAULT_NETWORK=os.getenv('NUCYPHER_OPS_DEFAULT_NETWORK', 'mainnet')
+DEFAULT_NAMESPACE = os.getenv('NUCYPHER_OPS_DEFAULT_NAMESPACE', 'nucypher')
+DEFAULT_NETWORK = os.getenv('NUCYPHER_OPS_DEFAULT_NETWORK', 'mainnet')

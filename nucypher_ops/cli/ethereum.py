@@ -1,15 +1,14 @@
+from nucypher_ops.constants import DEFAULT_NAMESPACE, DEFAULT_NETWORK
+from nucypher_ops.ops.fleet_ops import CloudDeployers
 import os
 import click
 emitter = click
-
-from nucypher_ops.ops.fleet_ops import CloudDeployers
-
-from nucypher_ops.constants import DEFAULT_NAMESPACE, DEFAULT_NETWORK
 
 
 @click.group('ethereum')
 def cli():
     """deploy and update geth nodes"""
+
 
 @cli.command('deploy')
 @click.option('--image', help="The geth image to deploy", default='ethereum/client-go:stable')
@@ -28,7 +27,7 @@ def deploy(image, namespace, network, include_hosts, envvars, cliargs):
                                                       envvars=envvars,
                                                       cliargs=cliargs,
                                                       resource_name='ethereum'
-                                                    )
+                                                      )
 
     hostnames = deployer.config['instances'].keys()
     if include_hosts:

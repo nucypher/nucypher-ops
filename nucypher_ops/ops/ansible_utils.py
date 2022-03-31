@@ -12,6 +12,7 @@ ansible_context.CLIARGS = ImmutableDict(
     }
 )
 
+
 class AnsiblePlayBookResultsCollector(CallbackBase):
     """
 
@@ -55,7 +56,8 @@ class AnsiblePlayBookResultsCollector(CallbackBase):
                 data = '[{}]=> changed'.format(result._host.name)
             else:
                 data = '[{}]=> ok'.format(result._host.name)
-            self.send_save(data, color='yellow' if result.is_changed() else 'green')
+            self.send_save(
+                data, color='yellow' if result.is_changed() else 'green')
         if 'msg' in result._task_fields['args']:
             self.send_save('\n')
             msg = result._task_fields['args']['msg']
@@ -65,8 +67,8 @@ class AnsiblePlayBookResultsCollector(CallbackBase):
                     regex = fr'{k}:\s*(?P<data>.*)'
                     match = re.search(regex, msg, flags=re.MULTILINE)
                     if match:
-                        self.results[k].append((result._host.name, match.groupdict()['data']))
-
+                        self.results[k].append(
+                            (result._host.name, match.groupdict()['data']))
 
     def v2_runner_on_failed(self, result, *args, **kwargs):
         if self.filter_output is not None:

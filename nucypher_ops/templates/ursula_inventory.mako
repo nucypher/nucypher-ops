@@ -38,6 +38,9 @@ all:
                   % if node.get('payment_provider'):
                   payment_provider: ${node['payment_provider']}
                   %endif
+                  % if node.get('payment_network'):
+                  payment_network: ${node['payment_network']}
+                  %endif
                   %if node.get('docker_image'):
                   docker_image: ${node['docker_image']}
                   %endif
