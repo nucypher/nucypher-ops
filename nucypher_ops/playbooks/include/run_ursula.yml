@@ -45,8 +45,16 @@
     - name: "update Ursula operator config"
       become: yes
       become_user: nucypher
-      command: "docker run -v /home/nucypher:/root/.local/share/ -e NUCYPHER_KEYSTORE_PASSWORD -it {{ docker_image | default('nucypher/nucypher:latest') }}  nucypher ursula config --eth-provider {{ eth_provider }} --operator-address {{active_account.stdout}} --rest-host {{ip_response.content}} --network {{network_name}} {{nucypher_ursula_init_options | default('')}} {{signer_options}} --config-file /root/.local/share/nucypher/ursula.json"
-      environment: "{{runtime_envvars}}"
+      command: "docker run -v /home/nucypher:/root/.local/share/ \
+        -e NUCYPHER_KEYSTORE_PASSWORD -it {{ docker_image | default('nucypher/nucypher:latest') }} \
+        nucypher ursula config \
+        --eth-provider {{ eth_provider }} \
+        --network {{network_name}} \
+        --payment-network {{payment_network}} \
+        --payment-provider {{payment_provider}} \
+        {{nucypher_ursula_init_options | default('')}} {{signer_options}}"
+      environment:
+        NUCYPHER_KEYSTORE_PASSWORD: "{{runtime_envvars['NUCYPHER_KEYSTORE_PASSWORD']}}"
 
     - name: "Backup Worker Nucypher Keystore locally to: {{deployer_config_path}}/remote_worker_backups/"
       become: yes
