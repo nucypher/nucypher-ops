@@ -639,9 +639,16 @@ class BaseCloudNodeConfigurator:
                 f" Backup data can be found here: {self.config_dir}/remote_worker_backups/")
 
     def format_ssh_cmd(self, host_data):
+        
+        keypair = ''
         user = next(v['value'] for v in host_data['provider_deploy_attrs']
                     if v['key'] == 'default_user')
-        return f"ssh {user}@{host_data['publicaddress']}"
+
+        if any([pda['key'] == 'ansible_ssh_private_key_file' for pda in host_data['provider_deploy_attrs']]):
+            keypair ='-i "' + next(v['value'] for v in host_data['provider_deploy_attrs']
+                                if v['key'] == 'ansible_ssh_private_key_file') + '"'
+
+        return f"ssh {user}@{host_data['publicaddress']} {keypair}"
 
     def alert_new_mnemonic(self, wallet):
         self.emitter.echo(
@@ -1181,11 +1188,6 @@ class AWSNodeConfigurator(BaseCloudNodeConfigurator):
         node_data['provider_deploy_attrs'] = self._provider_deploy_attrs
 
         return node_data
-
-    def format_ssh_cmd(self, host_data):
-        keypair_path = next(v['value'] for v in host_data['provider_deploy_attrs']
-                            if v['key'] == 'ansible_ssh_private_key_file')
-        return f'{super().format_ssh_cmd(host_data)} -i "{keypair_path}"'
 
 
 class GenericConfigurator(BaseCloudNodeConfigurator):
