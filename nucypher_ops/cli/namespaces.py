@@ -22,7 +22,9 @@ def list_namespaces(network, all):
         CloudDeployers.get_deployer('generic')(emitter, network=network, pre_config={"namespace": None})
         for network in networks]
     for deployer in deployers:
-        if os.path.exists(deployer.network_config_path):
+        namespaces = deployer.get_namespace_names()
+        if namespaces:
             emitter.echo(deployer.network)
-            for ns in deployer.network_config_path.iterdir():
-                emitter.echo(f'\t{ns.stem}')
+            for ns in namespaces:
+                emitter.echo(f'\t{ns}')
+                

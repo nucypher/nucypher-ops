@@ -87,29 +87,27 @@ def copy(from_path, from_name, to_network, namespace, nickname):
 
 
 @cli.command('list')
-@click.option('--network', help="The network whose hosts you want to see.", type=click.STRING, default=None)
+@click.option('--all', help="list all nodes under all networks and namespaces", default=False, is_flag=True)
+@click.option('--network', help="The network whose hosts you want to see.", type=click.STRING, default=DEFAULT_NETWORK)
 @click.option('--namespace', help="The network whose hosts you want to see.", type=click.STRING, default=DEFAULT_NAMESPACE)
-def list(network, namespace):
+def list(network, namespace, all):
     """Prints local config info about known hosts"""
 
-    if not network:
+    if all:
         networks = NETWORKS.keys()
     else:
         networks = [network]
 
-    for network in networks:
-        emitter.echo(network)
-        deployer = CloudDeployers.get_deployer('generic')(
-            emitter, network=network, namespace=namespace, read_only=True)
-        if deployer.config_path.exists():
-            hosts = deployer.get_all_hosts()
-            if not hosts:
-                emitter.echo(
-                    f"No nodes in the {network}/{namespace} namespace")
+    deployers = [
+        CloudDeployers.get_deployer('generic')(emitter, network=network, pre_config={"namespace": None}, read_only=True)
+        for network in networks]
+    
+    for deployer in deployers:
+        emitter.echo(deployer.network)
+        for ns, hosts in deployer.get_namespace_data():
+            emitter.echo(f'\t{ns}')
             for name, data in hosts:
-                emitter.echo(name)
-                for k, v in data.items():
-                    emitter.echo(f"\t{k}: {v}")
+                emitter.echo(f'\t\t{name}')
 
 
 @cli.command('destroy')

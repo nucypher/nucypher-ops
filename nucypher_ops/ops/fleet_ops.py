@@ -117,13 +117,12 @@ class BaseCloudNodeConfigurator:
             self.config = json.load(open(self.config_path))
             self.namespace_network = self.config['namespace']
         elif kwargs.get('read_only'):
+            self.config = {
+                'instances': {},
+            }
             return
         else:
             self.namespace_network = f'{self.network}-{self.namespace}-{maya.now().date.isoformat()}'
-            self.emitter.echo(
-                f"Configuring Cloud Deployer with namespace: '{self.namespace_network}'")
-            time.sleep(3)
-
             self.config = {
                 "namespace": self.namespace_network,
                 "keystorepassword": b64encode(os.urandom(64)).decode('utf-8'),
@@ -133,9 +132,6 @@ class BaseCloudNodeConfigurator:
                 'docker_image': docker_image
             }
             self._write_config()
-
-        self.emitter.echo(
-            f'nucypher-ops running with config file: {str(self.config_path)}\n')
 
         if not self.config.get('keystoremnemonic'):
             wallet = keygen.generate()
@@ -575,6 +571,21 @@ class BaseCloudNodeConfigurator:
             (node_name, host_data) for node_name, host_data in self.get_all_hosts()
             if host_data['provider'] == self.provider_name
         ]
+
+    def get_namespace_names(self):
+        if os.path.exists(self.network_config_path):
+            for ns in self.network_config_path.iterdir():
+                yield ns.stem
+
+    def get_namespace_data(self):
+        for ns in self.get_namespace_names():
+            dep = CloudDeployers.get_deployer('generic')(
+                self.emitter,
+                namespace=ns,
+                network=self.network,
+                read_only=True
+            )
+            yield (ns, dep.get_all_hosts())
     
     def get_host_by_name(self, host_name):
         return next([host_data for node_name, host_data in self.get_all_hosts() if node_name == host_name])
