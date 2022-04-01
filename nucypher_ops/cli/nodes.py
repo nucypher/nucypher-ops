@@ -57,8 +57,33 @@ def add(host_address, login_name, key_path, ssh_port, nickname, namespace, netwo
     name = nickname
 
     deployer = CloudDeployers.get_deployer('generic')(
-        emitter, None, None, namespace=namespace, network=network, action='add')
+        emitter, namespace=namespace, network=network, action='add')
     deployer.create_nodes([name], host_address, login_name, key_path, ssh_port)
+
+
+@cli.command('copy')
+@click.option('--nickname', help="A nickname to remember this host by", type=click.STRING, required=True)
+@click.option('--namespace', help="Namespace for these operations.  Used to address hosts and data locally and name hosts on cloud platforms.", type=click.STRING, default='nucypher')
+@click.option('--network', help="The Nucypher network name these hosts will run on. (default mainnet)", type=click.STRING, default=DEFAULT_NETWORK)
+@click.option('--from', 'from_path', help="The 'path' of a node in /network/namespace/name format ie. '/mainnet/aws-us-east-nodes/aws-1'", type=click.STRING, required=True)
+def copy(from_path, from_name, to_network, namespace, nickname):
+    """Adds an existing node to the local config for future management."""
+
+    try:
+        network, namespace, host_name = from_path.split('/')
+    except Exception as e:
+        emitter.echo("please supply --from in the format of /network/namespace/node_nickname")
+        return
+
+
+    source = CloudDeployers.get_deployer('generic')(emitter, namespace=namespace, network=network)
+    host_data = source.get_host_by_name(host_name)
+    print(host_data)
+    
+
+    # deployer = CloudDeployers.get_deployer('generic')(
+    #     emitter, None, None, namespace=namespace, network=network, action='add')
+    # deployer.create_nodes([name], host_address, login_name, key_path, ssh_port)
 
 
 @cli.command('list')

@@ -575,6 +575,9 @@ class BaseCloudNodeConfigurator:
             (node_name, host_data) for node_name, host_data in self.get_all_hosts()
             if host_data['provider'] == self.provider_name
         ]
+    
+    def get_host_by_name(self, host_name):
+        return next([host_data for node_name, host_data in self.get_all_hosts() if node_name == host_name])
 
     def get_all_hosts(self):
         return [(node_name, host_data) for node_name, host_data in self.config['instances'].items()]
@@ -949,7 +952,7 @@ class AWSNodeConfigurator(BaseCloudNodeConfigurator):
         out_path = DEFAULT_CONFIG_ROOT / NODE_CONFIG_STORAGE_KEY / \
             f'{self.namespace_network}.awskeypair'
         out_path.parent.mkdir(parents=True, exist_ok=True)
-        print('out_path', out_path)
+
         with open(out_path, 'w') as outfile:
             outfile.write(new_keypair_data['KeyMaterial'])
         # set local keypair permissions https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-key-pairs.html
