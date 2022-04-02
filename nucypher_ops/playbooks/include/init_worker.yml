@@ -15,7 +15,7 @@
       file:
         path: "{{geth_dir}}"
         state: absent
-      when: wipe_nucypher_config is not undefined and wipe_nucypher_config
+      when: wipe_eth_wallet is not undefined and wipe_eth_wallet
 
     - name: "create geth keystore directory"
       become: yes

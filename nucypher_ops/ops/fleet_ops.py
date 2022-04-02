@@ -364,6 +364,9 @@ class BaseCloudNodeConfigurator:
         if migrate_nucypher or init:
             keep_going = self.emitter.prompt(
                 "Proceeding with this operation will delete information from your nodes including wallets and keys.  Are you sure? (type 'yes')") == 'yes'
+            if init:
+                keep_going = self.emitter.prompt(
+                    "Proceeding with this operation will delete your node's eth wallet so make sure it does not posses any significant funds... Are you sure? (type 'yes')") == 'yes'
             if not keep_going:
                 return
             if migrate_nucypher:
