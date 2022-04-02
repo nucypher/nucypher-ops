@@ -54,6 +54,7 @@ NODE_CONFIG_STORAGE_KEY = 'configs'
 class BaseCloudNodeConfigurator:
 
     NAMESSPACE_CREATE_ACTIONS = ['add', 'create']
+    application = 'ursula'
 
     def __init__(self,  # TODO: Add type annotations
                  emitter,
@@ -406,6 +407,12 @@ class BaseCloudNodeConfigurator:
         executor._tqm._stdout_callback = callback
         executor.run()
 
+        for k in node_names:
+            installed = self.config['instances'][k].get('installed', [])
+            installed = list(set(installed + [self.application]))
+            self.config['instances'][k]['installed'] = installed
+        self._write_config()
+
         self.update_captured_instance_data(self.output_capture)
         self.give_helpful_hints(node_names, backup=True, playbook=playbook)
 
@@ -572,13 +579,17 @@ class BaseCloudNodeConfigurator:
             if host_data['provider'] == self.provider_name
         ]
 
-    def get_namespace_names(self):
+    def get_namespace_names(self, namespace=None):
         if os.path.exists(self.network_config_path):
             for ns in self.network_config_path.iterdir():
-                yield ns.stem
+                if namespace:
+                    if namespace == ns.stem:
+                        yield ns.stem
+                else:
+                    yield ns.stem
 
-    def get_namespace_data(self):
-        for ns in self.get_namespace_names():
+    def get_namespace_data(self, namespace=None):
+        for ns in self.get_namespace_names(namespace):
             dep = CloudDeployers.get_deployer('generic')(
                 self.emitter,
                 namespace=ns,

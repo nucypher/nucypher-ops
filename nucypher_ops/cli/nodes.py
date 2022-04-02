@@ -87,27 +87,31 @@ def copy(from_path, from_name, to_network, namespace, nickname):
 
 
 @cli.command('list')
+@click.option('--verbose', help="list node data", default=False, is_flag=True)
 @click.option('--all', help="list all nodes under all networks and namespaces", default=False, is_flag=True)
 @click.option('--network', help="The network whose hosts you want to see.", type=click.STRING, default=DEFAULT_NETWORK)
 @click.option('--namespace', help="The network whose hosts you want to see.", type=click.STRING, default=DEFAULT_NAMESPACE)
-def list(network, namespace, all):
+def list(network, namespace, all, verbose):
     """Prints local config info about known hosts"""
 
     if all:
         networks = NETWORKS.keys()
+        namespace = None
     else:
         networks = [network]
 
     deployers = [
-        CloudDeployers.get_deployer('generic')(emitter, network=network, pre_config={"namespace": None}, read_only=True)
+        CloudDeployers.get_deployer('generic')(emitter, network=network, pre_config={"namespace": namespace}, read_only=True)
         for network in networks]
     
     for deployer in deployers:
-        emitter.echo(deployer.network)
-        for ns, hosts in deployer.get_namespace_data():
+        emitter.echo(f'{network}')
+        for ns, hosts in deployer.get_namespace_data(namespace=namespace):
             emitter.echo(f'\t{ns}')
             for name, data in hosts:
                 emitter.echo(f'\t\t{name}')
+                if verbose:
+                    emitter.echo(f'\t\t\t{data}')
 
 
 @cli.command('destroy')
