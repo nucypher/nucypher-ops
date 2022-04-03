@@ -25,7 +25,7 @@ all:
                 wipe_eth_wallet: ${extra.get('init', False)}
                 deployer_config_path: ${deployer.config_dir}
                 restore_path: ${extra.get('restore_path')}
-                payment_network: ${deployer.config['payment_network']}
+                payment_network: ${deployer.config.get('payment_network', 'polygon')}
               hosts:
                 %for node in nodes:
                 ${node['publicaddress']}:

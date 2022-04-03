@@ -141,7 +141,7 @@ def destroy(cloudprovider, namespace, network, include_hosts):
     hostnames = [name for name, data in deployer.get_provider_hosts()]
     if include_hosts:
         hostnames = include_hosts
-        deployer.destroy_resources(hostnames)
+    deployer.destroy_resources(hostnames)
 
 
 @cli.command('remove')

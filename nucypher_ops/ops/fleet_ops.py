@@ -610,12 +610,12 @@ class BaseCloudNodeConfigurator:
     def destroy_resources(self, node_names):
         node_names = [s for s in node_names if s in [
             names for names, data in self.get_provider_hosts()]]
-        self.emitter.echo(
-            f"Destroying {self.provider_name} instances for nodes: {' '.join(node_names)}")
-        if self._destroy_resources(node_names):
-            if not self.config.get('instances'):
-                self.emitter.echo(
-                    f"deleted all requested resources for {self.provider_name}.  We are clean.  No money is being spent.", color="green")
+        if self.emitter.prompt( f"Destroying {self.provider_name} instances for nodes: {' '.join(node_names)}.  Continue?  (type 'yes')") == 'yes':
+            
+            if self._destroy_resources(node_names):
+                if not self.config.get('instances'):
+                    self.emitter.echo(
+                        f"deleted all requested resources for {self.provider_name}.  We are clean.  No money is being spent.", color="green")
 
     def _destroy_resources(self, *args, **kwargs):
         raise NotImplementedError
@@ -818,8 +818,7 @@ class DigitalOceanConfigurator(BaseCloudNodeConfigurator):
 
     def _destroy_resources(self, node_names):
 
-        existing_instances = {k: v for k, v in self.config.get(
-            'instances', {}).items() if k in node_names}
+        existing_instances = {k: v for k, v in self.get_provider_hosts().items() if k in node_names}
         if existing_instances:
             self.emitter.echo(
                 f"\nAbout to destroy the following: {', '.join(existing_instances.keys())}, including all local data about these nodes.")

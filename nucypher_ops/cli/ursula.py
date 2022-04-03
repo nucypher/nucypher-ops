@@ -11,7 +11,7 @@ def cli():
 
 
 @cli.command('deploy')
-@click.option('--payment-network', help="Payment network name", type=click.STRING, default=None)
+@click.option('--payment-network', help="Payment network name.  For testnets use 'mumbai'.", type=click.STRING, default='polygon')
 @click.option('--payment-provider', help="The remote blockchain provider for the payment network.", default=None)
 @click.option('--eth-provider', help="The remote blockchain provider for policies on the remote node.", default=None)
 @click.option('--nucypher-image', help="The docker image containing the nucypher code to run on the remote nodes.", default='nucypher/nucypher:latest')
