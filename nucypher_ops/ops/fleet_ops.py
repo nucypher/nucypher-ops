@@ -818,7 +818,7 @@ class DigitalOceanConfigurator(BaseCloudNodeConfigurator):
 
     def _destroy_resources(self, node_names):
 
-        existing_instances = {k: v for k, v in self.get_provider_hosts().items() if k in node_names}
+        existing_instances = {k: v for k, v in self.get_provider_hosts() if k in node_names}
         if existing_instances:
             self.emitter.echo(
                 f"\nAbout to destroy the following: {', '.join(existing_instances.keys())}, including all local data about these nodes.")
