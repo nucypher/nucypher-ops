@@ -692,6 +692,9 @@ class BaseCloudNodeConfigurator:
         for index, instance in enumerate(self.config['instances'].keys()):
             if not self.config['instances'][instance].get('index'):
                 self.config['instances'][instance]['index'] = index
+            if instance.runtime_envvars.get('NUCYPHER_WORKER_ETH_PASSWORD'):
+                instance.runtime_envvars['NUCYPHER_OPERATOR_ETH_PASSWORD'] = instance.runtime_envvars.get('NUCYPHER_WORKER_ETH_PASSWORD')
+                del instance.runtime_envvars['NUCYPHER_WORKER_ETH_PASSWORD']
 
         if self.config.get('keyringpassword'):
             self.config['keystorepassword'] = self.config.get(
