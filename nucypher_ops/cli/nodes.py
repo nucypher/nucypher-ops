@@ -2,6 +2,7 @@ from nucypher_ops.constants import DEFAULT_NAMESPACE, DEFAULT_NETWORK, NETWORKS
 from nucypher_ops.ops.fleet_ops import CloudDeployers
 import os
 import click
+import json
 emitter = click
 
 
@@ -87,11 +88,11 @@ def copy(from_path, from_name, to_network, namespace, nickname):
 
 
 @cli.command('list')
-@click.option('--verbose', help="list node data", default=False, is_flag=True)
+@click.option('--json', 'as_json', help="list node data", default=False, is_flag=True)
 @click.option('--all', help="list all nodes under all networks and namespaces", default=False, is_flag=True)
 @click.option('--network', help="The network whose hosts you want to see.", type=click.STRING, default=DEFAULT_NETWORK)
 @click.option('--namespace', help="The network whose hosts you want to see.", type=click.STRING, default=DEFAULT_NAMESPACE)
-def list(network, namespace, all, verbose):
+def list(network, namespace, all, as_json):
     """Prints local config info about known hosts"""
 
     if all:
@@ -105,13 +106,16 @@ def list(network, namespace, all, verbose):
         for network in networks]
     
     for deployer in deployers:
-        emitter.echo(f'{network}')
+        if not as_json:
+            emitter.echo(f'{network}')
         for ns, hosts in deployer.get_namespace_data(namespace=namespace):
-            emitter.echo(f'\t{ns}')
+            if not as_json:
+                emitter.echo(f'\t{ns}')
             for name, data in hosts:
-                emitter.echo(f'\t\t{name}')
-                if verbose:
-                    emitter.echo(f'\t\t\t{data}')
+                if not as_json:
+                    emitter.echo(f'\t\t{name}')
+                if as_json:
+                    print (json.dumps(data, indent=4))
 
 
 @cli.command('destroy')
