@@ -12,7 +12,7 @@
         restart: yes
         image: "{{ porter_image | default('nucypher/porter:latest') }}"
         restart_policy: "unless-stopped"
-        command: 'nucypher porter run --eth-provider {{ eth_provider }} --network {{network_name}} --allow-origins "{{PORTER_CORS_ALLOW_ORIGINS}}" --teacher {{teacher_address}}'
+        command: 'nucypher porter run --eth-provider {{ eth_provider }} {{CLI_RUNTIME_OPTIONS}}'
         container_default_behavior: "compatibility"
         volumes:
           - ~/nucypher/nucypher:/root/.local/share/nucypher

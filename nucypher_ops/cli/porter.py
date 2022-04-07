@@ -20,13 +20,13 @@ def cli():
 def deploy(image, namespace, network, include_hosts, envvars, cliargs):
     """Deploys NuCypher on managed hosts."""
 
-    deployer = CloudDeployers.get_deployer('generic')(emitter,
+    deployer = CloudDeployers.get_deployer('porter')(emitter,
                                                       docker_image=image,
                                                       namespace=namespace,
                                                       network=network,
                                                       envvars=envvars,
                                                       cliargs=cliargs,
-                                                      resource_name='ethereum'
+                                                      resource_name='porter'
                                                       )
 
     hostnames = deployer.config['instances'].keys()
@@ -35,4 +35,4 @@ def deploy(image, namespace, network, include_hosts, envvars, cliargs):
     for name, hostdata in [(n, d) for n, d in deployer.config['instances'].items() if n in hostnames]:
         emitter.echo(f'\t{name}: {hostdata["publicaddress"]}', color="yellow")
     os.environ['ANSIBLE_HOST_KEY_CHECKING'] = 'False'
-    deployer.deploy_image_on_existing_nodes(hostnames, 'porter')
+    deployer.deploy_porter_on_existing_nodes(hostnames)

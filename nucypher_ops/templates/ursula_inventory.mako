@@ -52,5 +52,5 @@ all:
                   %for key, val in node['runtime_envvars'].items():
                     ${key}: "${val}"
                   %endfor
-                  nucypher_ursula_run_options: ${deployer._format_runtime_options(node['runtime_cliargs'])}
+                  CLI_RUNTIME_OPTIONS: ${deployer._format_runtime_options(node['runtime_cliargs'])}
                 %endfor

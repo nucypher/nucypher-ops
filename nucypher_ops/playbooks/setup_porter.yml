@@ -1,4 +1,4 @@
-- name: "Setup Remote Geth"
+- name: "Setup Remote Porter Node"
   hosts: "{{ play_hosts }}"
   remote_user: "{{default_user}}"
 

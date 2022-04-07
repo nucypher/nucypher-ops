@@ -78,7 +78,7 @@
           max-file: "5"
         image: "{{ docker_image | default('nucypher/nucypher:latest') }}"
         restart_policy: "unless-stopped"
-        command: "nucypher ursula run {{nucypher_ursula_run_options}} --lonely"
+        command: "nucypher ursula run {{CLI_RUNTIME_OPTIONS}} --lonely"
         volumes:
           - /home/nucypher:/root/.local/share/
         ports:
@@ -106,7 +106,7 @@
           max-file: "5"
         image: "{{ docker_image | default('nucypher/nucypher:latest') }}"
         restart_policy: "unless-stopped"
-        command: "nucypher ursula run {{nucypher_ursula_run_options}} {{teacher_options}}"
+        command: "nucypher ursula run {{CLI_RUNTIME_OPTIONS}} {{teacher_options}}"
         volumes:
           - /home/nucypher:/root/.local/share/
         ports:

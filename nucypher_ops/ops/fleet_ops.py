@@ -55,6 +55,26 @@ class BaseCloudNodeConfigurator:
 
     NAMESSPACE_CREATE_ACTIONS = ['add', 'create']
     application = 'ursula'
+    required_fields = [
+        'eth_provider',
+        'payment_provider',
+        'docker_image',
+        'payment_network'
+    ]
+
+    host_level_override_prompts = {
+        'eth_provider': {"prompt": "--eth-provider: please provide the url of a hosted ethereum node (infura/geth) which your nodes can access", "choices": None},
+        'payment_provider': {"prompt": "--payment-provider: please provide the url of a hosted level-two node (infura/bor) which your nodes can access", "choices": None},
+        'payment_network':  {"prompt": f'--payment-network:  choose a payment network from: {PAYMENT_NETWORK_CHOICES}', "choices": PAYMENT_NETWORKS},
+    }
+
+    output_capture = {
+        'operator address': [], 
+        'rest url': [], 
+        'nucypher version': [], 
+        'nickname': []
+    }
+
 
     def __init__(self,  # TODO: Add type annotations
                  emitter,
@@ -99,11 +119,6 @@ class BaseCloudNodeConfigurator:
 
         self.created_new_nodes = False
 
-        # the keys in this dict are used as search patterns by the anisble result collector and it will return
-        # these values for each node if it happens upon them in some output
-        self.output_capture = {'operator address': [], 'rest url': [
-        ], 'nucypher version': [], 'nickname': []}
-
         if pre_config:
             self.config = pre_config
             self.namespace_network = self.config.get('namespace')
@@ -145,18 +160,12 @@ class BaseCloudNodeConfigurator:
         # if certain config options have been specified with this invocation,
         # save these to update host specific variables before deployment
         # to allow for individual host config differentiation
-        self.host_level_overrides = {
+        self.host_level_overrides = {k: v for k, v in {
             'eth_provider': eth_provider,
             'payment_provider': self.kwargs.get('payment_provider'),
             'docker_image': docker_image,
             'payment_network':  self.kwargs.get('payment_network'),
-        }
-
-        self.host_level_override_prompts = {
-            'eth_provider': {"prompt": "--eth-provider: please provide the url of a hosted ethereum node (infura/geth) which your nodes can access", "choices": None},
-            'payment_provider': {"prompt": "--payment-provider: please provide the url of a hosted level-two node (infura/bor) which your nodes can access", "choices": None},
-            'payment_network':  {"prompt": f'--payment-network:  choose a payment network from: {PAYMENT_NETWORK_CHOICES}', "choices": PAYMENT_NETWORKS},
-        }
+        }.items() if k in self.required_fields}
 
         self.config['seed_network'] = seed_network if seed_network is not None else self.config.get(
             'seed_network')
@@ -359,6 +368,7 @@ class BaseCloudNodeConfigurator:
                 self._write_config()
         # print(json.dumps(self.config['instances'], indent=4))
 
+    
     def deploy_nucypher_on_existing_nodes(self, node_names, migrate_nucypher=False, init=False, **kwargs):
 
         if migrate_nucypher or init:
@@ -657,8 +667,9 @@ class BaseCloudNodeConfigurator:
                     f"\t{node_name}: {host_data['publicaddress']}")
                 self.emitter.echo(
                     f"\t\t ssh: {dep.format_ssh_cmd(host_data)}", color="yellow")
-                self.emitter.echo(
-                    f"\t\t operator address: {host_data['operator address']}")
+                if host_data.get('operator address'):
+                    self.emitter.echo(
+                        f"\t\t operator address: {host_data['operator address']}")
 
         if backup:
             self.emitter.echo(
@@ -1258,9 +1269,127 @@ class GenericConfigurator(BaseCloudNodeConfigurator):
 
         return self.config
 
-    def deploy_image_on_existing_nodes(self, hosts, resource):
-        self.emitter.echo("this feature is a work in progress")
-        pass
+
+class PorterDeployer(BaseCloudNodeConfigurator):
+
+    application = 'porter'
+    required_fields = [
+        'eth_provider',
+        'docker_image',
+    ]
+    host_level_override_prompts = {
+        'eth_provider': {"prompt": "--eth-provider: please provide the url of a hosted ethereum node (infura/geth) which this porter node can access", "choices": None},
+    }
+
+    output_capture = {}
+
+    @property
+    def _inventory_template(self):
+        template_path = Path(TEMPLATES).joinpath('porter_inventory.mako')
+        return Template(filename=str(template_path))
+
+    @property
+    def inventory_path(self):
+        return str(Path(DEFAULT_CONFIG_ROOT).joinpath(NODE_CONFIG_STORAGE_KEY, f'{self.namespace_network}.porter_ansible_inventory.yml'))
+
+    
+    def deploy_porter_on_existing_nodes(self, node_names):
+        playbook = Path(PLAYBOOKS).joinpath('setup_porter.yml')
+        self.configure_host_level_overrides(node_names)
+
+        self.update_generate_inventory(node_names)
+
+        for k in node_names:
+            installed = self.config['instances'][k].get('installed', [])
+            installed = list(set(installed + [self.application]))
+            self.config['instances'][k]['installed'] = installed
+        self._write_config()
+
+        loader = DataLoader()
+        inventory = InventoryManager(
+            loader=loader, sources=self.inventory_path)
+        callback = AnsiblePlayBookResultsCollector(
+            sock=self.emitter, return_results=self.output_capture)
+        variable_manager = VariableManager(loader=loader, inventory=inventory)
+
+        executor = PlaybookExecutor(
+            playbooks=[playbook],
+            inventory=inventory,
+            variable_manager=variable_manager,
+            loader=loader,
+            passwords=dict(),
+        )
+        executor._tqm._stdout_callback = callback
+        executor.run()
+
+        for k in node_names:
+            installed = self.config['instances'][k].get('installed', [])
+            installed = list(set(installed + [self.application]))
+            self.config['instances'][k]['installed'] = installed
+        self._write_config()
+
+        self.update_captured_instance_data(self.output_capture)
+        self.give_helpful_hints(node_names, backup=True, playbook=playbook)
+
+
+    def update_generate_inventory(self, node_names, **kwargs):
+
+        # filter out the nodes we will not be dealing with
+        nodes = {key: value for key,
+                 value in self.config['instances'].items() if key in node_names}
+        if not nodes:
+            raise KeyError(
+                f"No hosts matched the supplied names: {node_names}.  Try `nucypher-ops nodes list` or create new hosts with `nucypher-ops nodes create`")
+
+        defaults = {
+            'envvars':
+                [
+
+                ],
+            'cliargs': [
+                    ]
+        }
+        for datatype in ['envvars', 'cliargs']:
+
+            data_key = f'runtime_{datatype}'
+
+            input_data = [(k, v) for k, v in getattr(self, datatype)]
+
+            # populate the specified environment variables as well as the
+            # defaults that are only used in the inventory
+            for key, node in nodes.items():
+                node_vars = nodes[key].get(data_key, {})
+                for k, v in input_data:
+                    node_vars.update({k: v})
+                nodes[key][data_key] = node_vars
+
+                # we want to update the config with the specified values
+                # so they will persist in future invocations
+                self.config['instances'][key] = copy.deepcopy(nodes[key])
+
+            # we don't want to save the default_envvars to the config file
+            # but we do want them to be specified to the inventory template
+            # but overridden on a per node basis if previously specified
+            for key, node in nodes.items():
+                for k, v in defaults[datatype]:
+                    if not k in nodes[key][data_key]:
+                        nodes[key][data_key][k] = v
+
+        inventory_content = self._inventory_template.render(
+            deployer=self,
+            nodes=nodes.values(),
+            extra=kwargs,
+        )
+
+        with open(self.inventory_path, 'w') as outfile:
+            outfile.write(inventory_content)
+            self.emitter.echo(f"wrote new inventory to: {self.inventory_path}")
+
+        # now that everything rendered correctly, save how we got there.
+        self._write_config()
+
+        return self.inventory_path
+
 
 
 class CloudDeployers:
@@ -1268,6 +1397,7 @@ class CloudDeployers:
     aws = AWSNodeConfigurator
     digitalocean = DigitalOceanConfigurator
     generic = GenericConfigurator
+    porter = PorterDeployer
 
     @staticmethod
     def get_deployer(name):
