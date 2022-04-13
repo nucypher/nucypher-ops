@@ -14,13 +14,24 @@ def cli():
 @cli.command('create')
 @click.option('--region', help="provider specific region name (like us-east-1 or SFO3", default=None)
 @click.option('--instance-type', help="provider specific instance size like `s-1vcpu-2gb` or `t3.small`", default=None)
-@click.option('--cloudprovider', help="aws or digitalocean", default='aws')
+@click.option('--cloudprovider', help="aws or digitalocean", default=None)
 @click.option('--count', help="Create this many nodes.", type=click.INT, default=1)
 @click.option('--namespace', help="Namespace for these operations.  Used to address hosts and data locally and name hosts on cloud platforms.", type=click.STRING, default=DEFAULT_NAMESPACE)
 @click.option('--nickname', help="A nickname by which to remember the created hosts", type=click.STRING, required=False)
 @click.option('--network', help="The Nucypher network name these hosts will run on.", type=click.STRING, default=DEFAULT_NETWORK)
 def create(region, instance_type, cloudprovider, count, nickname, namespace, network):
     """Creates the required number of workers to be staked later under a namespace"""
+
+
+    available_providers = ['aws', 'digitalocean']
+    choice_list = '\n\t'.join(available_providers)
+
+    if not cloudprovider:
+        cloudprovider = emitter.prompt(
+            f"Please choose a Cloud Service Provider from these options: \n\t{choice_list}\n",
+            type=emitter.Choice(available_providers),
+            show_choices=False
+        )
 
     if cloudprovider == 'aws':
         try:
