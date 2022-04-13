@@ -69,12 +69,11 @@ class BaseCloudNodeConfigurator:
     }
 
     output_capture = {
-        'operator address': [], 
-        'rest url': [], 
-        'nucypher version': [], 
+        'operator address': [],
+        'rest url': [],
+        'nucypher version': [],
         'nickname': []
     }
-
 
     def __init__(self,  # TODO: Add type annotations
                  emitter,
@@ -246,7 +245,7 @@ class BaseCloudNodeConfigurator:
                      self.config['ethpassword']),
                 ],
             'cliargs': [
-                    ]
+            ]
         }
 
         if generate_keymaterial or kwargs.get('migrate_nucypher') or kwargs.get('init'):
@@ -368,7 +367,6 @@ class BaseCloudNodeConfigurator:
                 self._write_config()
         # print(json.dumps(self.config['instances'], indent=4))
 
-    
     def deploy_nucypher_on_existing_nodes(self, node_names, migrate_nucypher=False, init=False, **kwargs):
 
         if migrate_nucypher or init:
@@ -610,7 +608,7 @@ class BaseCloudNodeConfigurator:
                 read_only=True
             )
             yield (ns, dep.get_all_hosts())
-    
+
     def get_host_by_name(self, host_name):
         return next([host_data for node_name, host_data in self.get_all_hosts() if node_name == host_name])
 
@@ -620,8 +618,8 @@ class BaseCloudNodeConfigurator:
     def destroy_resources(self, node_names):
         node_names = [s for s in node_names if s in [
             names for names, data in self.get_provider_hosts()]]
-        if self.emitter.prompt( f"Destroying {self.provider_name} instances for nodes: {' '.join(node_names)}.  Continue?  (type 'yes')") == 'yes':
-            
+        if self.emitter.prompt(f"Destroying {self.provider_name} instances for nodes: {' '.join(node_names)}.  Continue?  (type 'yes')") == 'yes':
+
             if self._destroy_resources(node_names):
                 if not self.config.get('instances'):
                     self.emitter.echo(
@@ -678,14 +676,14 @@ class BaseCloudNodeConfigurator:
                 f" Backup data can be found here: {self.config_dir}/remote_worker_backups/")
 
     def format_ssh_cmd(self, host_data):
-        
+
         keypair = ''
         user = next(v['value'] for v in host_data['provider_deploy_attrs']
                     if v['key'] == 'default_user')
 
         if any([pda['key'] == 'ansible_ssh_private_key_file' for pda in host_data['provider_deploy_attrs']]):
-            keypair ='-i "' + next(v['value'] for v in host_data['provider_deploy_attrs']
-                                if v['key'] == 'ansible_ssh_private_key_file') + '"'
+            keypair = '-i "' + next(v['value'] for v in host_data['provider_deploy_attrs']
+                                    if v['key'] == 'ansible_ssh_private_key_file') + '"'
 
         return f"ssh {user}@{host_data['publicaddress']} {keypair}"
 
@@ -704,7 +702,8 @@ class BaseCloudNodeConfigurator:
             if not self.config['instances'][instance].get('index'):
                 self.config['instances'][instance]['index'] = index
             if instance.runtime_envvars.get('NUCYPHER_WORKER_ETH_PASSWORD'):
-                instance.runtime_envvars['NUCYPHER_OPERATOR_ETH_PASSWORD'] = instance.runtime_envvars.get('NUCYPHER_WORKER_ETH_PASSWORD')
+                instance.runtime_envvars['NUCYPHER_OPERATOR_ETH_PASSWORD'] = instance.runtime_envvars.get(
+                    'NUCYPHER_WORKER_ETH_PASSWORD')
                 del instance.runtime_envvars['NUCYPHER_WORKER_ETH_PASSWORD']
 
         if self.config.get('keyringpassword'):
@@ -754,29 +753,44 @@ class DigitalOceanConfigurator(BaseCloudNodeConfigurator):
         ]
 
     def _configure_provider_params(self):
-        self.token = os.environ.get('DIGITALOCEAN_ACCESS_TOKEN')
+
+        self.token = self.config.get('digital-ocean-access-token')
         if not self.token:
             self.emitter.echo(
-                f"Please `export DIGITALOCEAN_ACCESS_TOKEN=<your access token.>` from here:  https://cloud.digitalocean.com/account/api/tokens\n", color="red")
-            raise AttributeError(
-                "Could not continue without DIGITALOCEAN_ACCESS_TOKEN environment variable.")
+                "checking envvar DIGITALOCEAN_ACCESS_TOKEN for access token...")
+            self.token = os.environ.get('DIGITALOCEAN_ACCESS_TOKEN')
+        if not self.token:
+            self.token = self.emitter.prompt(
+                f"Please enter your Digital Ocean Access Token which can be created here: https://cloud.digitalocean.com/account/api/tokens.  It looks like this: b34abcDEF17ABCDEFAbcDEf09fd72a28425ABCDEF8b198e9623ABCDEFc11591.  You can also `export DIGITALOCEAN_ACCESS_TOKEN=<the token>`")
+            if not self.token:
+                raise AttributeError(
+                    "Could not continue without token or DIGITALOCEAN_ACCESS_TOKEN environment variable.")
+
         self.region = os.environ.get('DIGITALOCEAN_REGION') or self.config.get(
             'digital-ocean-region') or self.kwargs.get('region') or self.default_region
 
         self.emitter.echo(
-            f'using DigitalOcean region: {self.region}, to change regions `export DIGITALOCEAN_REGION: https://www.digitalocean.com/docs/platform/availability-matrix/\n', color='yellow')
+            f'using DigitalOcean region: {self.region}, to change regions call this command with --region specified or `export DIGITALOCEAN_REGION: https://www.digitalocean.com/docs/platform/availability-matrix/\n', color='yellow')
 
-        self.sshkey = os.environ.get(
-            'DIGITAL_OCEAN_KEY_FINGERPRINT') or self.config.get('sshkey')
+        self.sshkey = self.config.get('sshkey')
         if not self.sshkey:
             self.emitter.echo(
-                "Please set the name of your Digital Ocean SSH Key (`export DIGITAL_OCEAN_KEY_FINGERPRINT=<your preferred ssh key fingerprint>` from here: https://cloud.digitalocean.com/account/security", color="red")
-            self.emitter.echo(
-                "it should look like `DIGITAL_OCEAN_KEY_FINGERPRINT=88:fb:53:51:09:aa:af:02:e2:99:95:2d:39:64:c1:64`\n", color="red")
-            raise AttributeError(
-                "Could not continue without DIGITAL_OCEAN_KEY_FINGERPRINT environment variable.")
+                "checking envvar DIGITAL_OCEAN_KEY_FINGERPRINT for key fingerprint...")
+            self.sshkey = os.environ.get('DIGITAL_OCEAN_KEY_FINGERPRINT')
+        if not self.sshkey:
+            self.sshkey = self.emitter.prompt(
+                f"Please `enter the fingerprint of a Digital Ocean SSH Key which can be created here: https://cloud.digitalocean.com/account/security.  They look like this: 8a:db:8f:4c:b1:61:fa:84:21:30:4d:d6:77:3b:a1:4d")
+            if not self.sshkey:
+                self.emitter.echo(
+                    "Please set the name of your Digital Ocean SSH Key (`export DIGITAL_OCEAN_KEY_FINGERPRINT=<your preferred ssh key fingerprint>` from here: https://cloud.digitalocean.com/account/security", color="red")
+                self.emitter.echo(
+                    "it should look like `DIGITAL_OCEAN_KEY_FINGERPRINT=88:fb:53:51:09:aa:af:02:e2:99:95:2d:39:64:c1:64`\n", color="red")
+                raise AttributeError(
+                    "Could not continue without DIGITAL_OCEAN_KEY_FINGERPRINT.")
+
         self.config['sshkey'] = self.sshkey
         self.config['digital-ocean-region'] = self.region
+        self.config['digital-ocean-access-token'] = self.token
 
         self._write_config()
 
@@ -832,7 +846,8 @@ class DigitalOceanConfigurator(BaseCloudNodeConfigurator):
 
     def _destroy_resources(self, node_names):
 
-        existing_instances = {k: v for k, v in self.get_provider_hosts() if k in node_names}
+        existing_instances = {
+            k: v for k, v in self.get_provider_hosts() if k in node_names}
         if existing_instances:
             self.emitter.echo(
                 f"\nAbout to destroy the following: {', '.join(existing_instances.keys())}, including all local data about these nodes.")
@@ -1292,7 +1307,6 @@ class PorterDeployer(BaseCloudNodeConfigurator):
     def inventory_path(self):
         return str(Path(DEFAULT_CONFIG_ROOT).joinpath(NODE_CONFIG_STORAGE_KEY, f'{self.namespace_network}.porter_ansible_inventory.yml'))
 
-    
     def deploy_porter_on_existing_nodes(self, node_names):
         playbook = Path(PLAYBOOKS).joinpath('setup_porter.yml')
         self.configure_host_level_overrides(node_names)
@@ -1331,7 +1345,6 @@ class PorterDeployer(BaseCloudNodeConfigurator):
         self.update_captured_instance_data(self.output_capture)
         self.give_helpful_hints(node_names, backup=True, playbook=playbook)
 
-
     def update_generate_inventory(self, node_names, **kwargs):
 
         # filter out the nodes we will not be dealing with
@@ -1347,7 +1360,7 @@ class PorterDeployer(BaseCloudNodeConfigurator):
 
                 ],
             'cliargs': [
-                    ]
+            ]
         }
         for datatype in ['envvars', 'cliargs']:
 
@@ -1389,7 +1402,6 @@ class PorterDeployer(BaseCloudNodeConfigurator):
         self._write_config()
 
         return self.inventory_path
-
 
 
 class CloudDeployers:
