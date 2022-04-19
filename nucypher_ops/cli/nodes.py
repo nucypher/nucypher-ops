@@ -80,6 +80,7 @@ def add(host_address, login_name, key_path, ssh_port, nickname, namespace, netwo
 def copy(from_path, to_network, to_namespace):
     """
         Copy a node from one namespace to another
+       
         ie.  nucypher-ops nodes copy --to-namespace allmynodes --from mainnet/eu-central-1/europe-nodes-1
     """
 

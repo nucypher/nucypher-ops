@@ -29,7 +29,7 @@ from ansible.inventory.manager import InventoryManager
 from ansible.parsing.dataloader import DataLoader
 
 from ansible.vars.manager import VariableManager
-from base64 import b64encode
+from base64 import b64encode, b64decode
 from mako.template import Template
 from pathlib import Path
 
@@ -61,6 +61,7 @@ def needs_provider(method):
         w3 = web3.Web3(web3.Web3.HTTPProvider(provider))
         return method(self, w3, *args, **kwargs)
     return inner
+
 
 class BaseCloudNodeConfigurator:
 
@@ -139,8 +140,13 @@ class BaseCloudNodeConfigurator:
             self.namespace / self.config_filename
         self.config_dir = self.config_path.parent
 
+        # print (self.config_path)
         if self.config_path.exists():
-            self.config = json.load(open(self.config_path))
+            try:
+                self.config = json.load(open(self.config_path))
+            except json.decoder.JSONDecodeError as e:
+                self.emitter.echo(f"could not decode config file at: {self.config_path}")
+                raise
             self.namespace_network = self.config['namespace']
         elif kwargs.get('read_only'):
             self.config = {
@@ -625,7 +631,10 @@ class BaseCloudNodeConfigurator:
             yield (ns, dep.get_all_hosts())
 
     def get_host_by_name(self, host_name):
-        return next([host_data for node_name, host_data in self.get_all_hosts() if node_name == host_name])
+        try:
+            return next(host_data for node_name, host_data in self.get_all_hosts() if node_name == host_name)
+        except StopIteration:
+            return None
 
     def get_all_hosts(self):
         return [(node_name, host_data) for node_name, host_data in self.config['instances'].items()]
@@ -723,6 +732,11 @@ class BaseCloudNodeConfigurator:
         self.emitter.echo(
             "Back this up and keep it safe to enable restoration of Ursula nodes in the event of hard disk failure or other data loss.", color="red")
 
+    def new_mnemonic(self):
+        wallet = keygen.generate()
+        self.config['keystoremnemonic'] = wallet.mnemonic()
+        self.alert_new_mnemonic(wallet)
+
     def migrate_5_6(self):
         for index, instance in enumerate(self.config['instances'].keys()):
             if not self.config['instances'][instance].get('index'):
@@ -735,11 +749,8 @@ class BaseCloudNodeConfigurator:
         if self.config.get('keyringpassword'):
             self.config['keystorepassword'] = self.config.get(
                 'keyringpassword')
-
         if not self.config.get('keystoremnemonic'):
-            wallet = keygen.generate()
-            self.config['keystoremnemonic'] = wallet.mnemonic()
-            self.alert_new_mnemonic(wallet)
+            self.new_mnemonic()       
         self._write_config()
 
     def migrate(self, current=5, target=6):
@@ -986,6 +997,7 @@ class AWSNodeConfigurator(BaseCloudNodeConfigurator):
         'eu-central-1': 'ami-0c960b947cbb2dd16',  # Frankfurt
         'ap-northeast-1': 'ami-09b86f9709b3c33d4',  # Tokyo
         'ap-southeast-1': 'ami-093da183b859d5a4b',  # Singapore
+        'sa-east-1': 'ami-090006f29ecb2d79a'
     }
 
     preferred_platform = 'ubuntu-focal'  # unused
@@ -1283,8 +1295,11 @@ class AWSNodeConfigurator(BaseCloudNodeConfigurator):
 
     def create_new_node(self, node_name):
 
+        if not self.EC2_AMI_LOOKUP.get(self.AWS_REGION) or os.environ.get('NUCYPHER_OPS_AWS_AMI'):
+            raise AttributeError("Sorry nucypher-ops does not automatically support this region.  Please specify an ami for your instances by setting envar `export NUCYPHER_OPS_AWS_AMI=ami-xxxxxxxxxxxxxx`")
+
         params = dict(
-            ImageId=self.EC2_AMI_LOOKUP.get(self.AWS_REGION),
+            ImageId=os.environ.get('NUCYPHER_OPS_AWS_AMI') or self.EC2_AMI_LOOKUP.get(self.AWS_REGION),
             InstanceType=self.EC2_INSTANCE_SIZE,
             KeyName=self.keypair,
             NetworkInterfaces=[
@@ -1335,6 +1350,7 @@ class GenericConfigurator(BaseCloudNodeConfigurator):
     provider_name = 'generic'
 
     def _write_config(self):
+
         if not self.config_path.exists() and self.action not in self.NAMESSPACE_CREATE_ACTIONS:
             raise AttributeError(
                 f"Namespace/config '{self.namespace}' does not exist. Show existing namespaces: `nucypher nodes list-namespaces` or create a namespace: `nucypher nodes create`")
