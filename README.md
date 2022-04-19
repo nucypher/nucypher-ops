@@ -8,7 +8,7 @@ It has the functionality to spin up new nodes, deploy, and run the Threshold cod
 
 
 ## Basic Usage 
-`nucypher-ops nodes create --cloudprovider aws|digitalocean`
+`nucypher-ops nodes create`
 `nucypher-ops ursula deploy`
 
 For a more detailed guide on how to get started, follow this [tutorial](https://docs.nucypher.com/en/latest/pre_application/cloud_node_management.html).
