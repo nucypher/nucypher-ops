@@ -93,3 +93,46 @@ def status(namespace, network, include_hosts):
         hostnames = include_hosts
 
     deployer.get_worker_status(hostnames)
+
+@cli.command('fund')
+@click.option('--amount', help="The amount to fund each node.  Default is .003", type=click.FLOAT, default=.003)
+@click.option('--namespace', help="Namespace for these operations.  Used to address hosts and data locally and name hosts on cloud platforms.", type=click.STRING, default=DEFAULT_NAMESPACE)
+@click.option('--network', help="The Nucypher network name these hosts will run on.", type=click.STRING, default=DEFAULT_NETWORK)
+@click.option('--include-host', 'include_hosts', help="Query status on only the named hosts", multiple=True, type=click.STRING)
+def fund(amount, namespace, network, include_hosts):
+    """
+    fund remote nodes autmoatically using a locally managed burner wallet
+    """
+    
+    deployer = CloudDeployers.get_deployer('generic')(emitter, namespace=namespace, network=network)
+
+    if deployer.has_wallet:
+        if password := os.getenv('NUCYPHER_OPS_LOCAL_ETH_PASSWORD'):
+            emitter.echo("found local eth password in environment variable")
+        else:
+            password = click.prompt('Please enter the wallet password you saved for this account', hide_input=True)
+    else:
+        emitter.echo("Creating a new wallet to fund your nodes.")
+        if password := os.getenv('NUCYPHER_OPS_LOCAL_ETH_PASSWORD'):
+            emitter.echo("found local eth password in environment variable")
+        else:  
+            password = click.prompt('please enter a password for this new eth wallet', hide_input=True)
+            passwordagain = click.prompt('please enter the same password again', hide_input=True)
+            if not password == passwordagain:
+                raise AttributeError("passwords dont' match please try again.")
+
+    wallet = deployer.get_or_create_local_wallet(password)
+    emitter.echo(f"using local wallet: {wallet.address}")
+    balance = deployer.get_wallet_balance(wallet.address, eth=True)
+    emitter.echo(f"balance: {deployer.get_wallet_balance(wallet.address)}")
+
+    hostnames = deployer.config['instances'].keys()
+    if include_hosts:
+        hostnames = include_hosts
+
+    emitter.echo(f"funding {len(hostnames)} nodes with {amount} ETH each.")
+    if balance < amount * len(hostnames):
+        emitter.echo(f"balance on local wallet ({balance} ETH) is not enough to fund {len(hostnames)} with {amount} ETH.  Add more funds to local wallet ({wallet.address})")
+        return
+    deployer.fund_nodes(wallet, hostnames, amount)
+    

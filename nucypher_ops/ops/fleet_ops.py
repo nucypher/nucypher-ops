@@ -51,6 +51,17 @@ except ImportError:
 NODE_CONFIG_STORAGE_KEY = 'configs'
 
 
+def needs_provider(method):
+    def inner(self, *args, **kwargs):
+        provider = self.get_local_blockchain_provider()
+        try:
+            import web3
+        except ImportError:
+            self.emitter.echo("web3 must be installed to use this functionality ('pip install web3')")
+        w3 = web3.Web3(web3.Web3.HTTPProvider(provider))
+        return method(self, w3, *args, **kwargs)
+    return inner
+
 class BaseCloudNodeConfigurator:
 
     NAMESSPACE_CREATE_ACTIONS = ['add', 'create']
@@ -200,6 +211,10 @@ class BaseCloudNodeConfigurator:
     @property
     def _provider_deploy_attrs(self):
         return []
+
+    @property
+    def has_wallet(self):
+        return self.config.get('local_wallet_keystore') is not None
 
     def _configure_provider_params(self):
         pass
@@ -668,6 +683,10 @@ class BaseCloudNodeConfigurator:
                 if host_data.get('operator address'):
                     self.emitter.echo(
                         f"\t\t operator address: {host_data['operator address']}")
+                    if self.config.get('local_blockchain_provider'):
+                        self.emitter.echo(
+                            f"\t\t operator ETH balance: {self.get_wallet_balance(host_data['operator address'], eth=True)}"
+                        )
 
         if backup:
             self.emitter.echo(
@@ -735,6 +754,64 @@ class BaseCloudNodeConfigurator:
                     time.sleep(3)
                     del self.config['instances'][node_name]
                     self._write_config()
+
+    def get_local_blockchain_provider(self):
+        if not self.config.get('local_blockchain_provider'):
+            blockchain_provider = self.emitter.prompt("Please enter a blockchain provider for this local wallet to access the blockchain.")
+            self.config['local_blockchain_provider'] = blockchain_provider
+            self._write_config()
+
+        return self.config.get('local_blockchain_provider')
+
+    def get_or_create_local_wallet(self, password):
+
+        try:
+            import web3
+        except ImportError:
+            self.emitter.echo("web3 must be installed to use this functionality ('pip install web3')")
+
+        if not self.has_wallet:
+            account = web3.Account.create() # uses index 0 by default which will not be used by any subsequent node
+            keystore = web3.Account.encrypt(account.privateKey, password)
+            keystore_b64 = b64encode(json.dumps(keystore).encode()).decode('utf-8')
+            self.config['local_wallet_keystore'] = keystore_b64
+            self._write_config()
+
+        account_keystore = b64decode(self.config['local_wallet_keystore']).decode()
+        return web3.Account.from_key(web3.Account.decrypt(account_keystore, password))
+
+    @needs_provider
+    def get_wallet_balance(self, web3, address, eth=False):        
+        balance =  web3.eth.get_balance(address)
+        if eth:
+            return web3.fromWei(balance, 'ether')
+        return balance
+
+    @needs_provider
+    def fund_nodes(self, web3, wallet, node_names, amount):
+        hosts = [h for h in self.get_all_hosts() if h[0] in node_names]
+        for name, host in hosts:
+            if not host.get('operator address'):
+                raise AttributeError(f"missing operator address for node: {host['host_nickname']}.  Deploy ursula first to create an operator address.")
+
+            host_op_address = host.get('operator address')
+            balance =  web3.eth.get_balance(host_op_address)
+            existing_balance = self.get_wallet_balance(host_op_address, eth=True)
+            self.emitter.echo(f"existing balance for node: {name}: {existing_balance}")
+            if existing_balance >= amount:
+                self.emitter.echo(f"host {name} already has {existing_balance} ETH.  funded.")
+            else:
+                transaction = {
+                    "nonce": web3.eth.getTransactionCount(wallet.address, 'pending'),
+                    "from": wallet.address,
+                    "to": host_op_address,
+                    "value": web3.toWei(amount, 'ether'),
+                    "gas": 21000,
+                    "gasPrice": web3.eth.gasPrice * 2
+                }
+                signed_tx = wallet.sign_transaction(transaction)
+                tx_hash = web3.eth.send_raw_transaction(signed_tx.rawTransaction).hex()
+                self.emitter.echo(f"Broadcast transaction {tx_hash} for node: {host['host_nickname']}")
 
 
 class DigitalOceanConfigurator(BaseCloudNodeConfigurator):
