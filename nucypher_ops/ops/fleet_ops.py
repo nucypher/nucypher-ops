@@ -630,6 +630,13 @@ class BaseCloudNodeConfigurator:
     def get_all_hosts(self):
         return [(node_name, host_data) for node_name, host_data in self.config['instances'].items()]
 
+    def add_already_configured_node(self, host_data):
+        if self.get_host_by_name(host_data['host_nickname']):
+            raise AttributeError(f"Host with nickname {host_data['host_nickname']} already exists in {self.network}/{self.namespace}")
+        host_data['index'] = self.instance_count
+        self.config['instances'][host_data['host_nickname']] = host_data
+        self._write_config()
+
     def destroy_resources(self, node_names):
         node_names = [s for s in node_names if s in [
             names for names, data in self.get_provider_hosts()]]
