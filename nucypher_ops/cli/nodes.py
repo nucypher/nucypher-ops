@@ -85,7 +85,7 @@ def copy(from_path, to_network, to_namespace):
     """
 
     try:
-        network, namespace, host_name = from_path.split('/')
+        network, namespace, host_name = from_path.lstrip('/').rstrip('/').split('/')
     except Exception as e:
         emitter.echo("please supply --from in the format of /network/namespace/node_nickname")
         return
@@ -95,7 +95,7 @@ def copy(from_path, to_network, to_namespace):
     host_data = source.get_host_by_name(host_name)
     
     deployer = CloudDeployers.get_deployer('generic')(
-        emitter, namespace=to_namespace, network=to_network)
+        emitter, namespace=to_namespace, network=to_network, action='copy')
     deployer.add_already_configured_node(host_data)
 
 

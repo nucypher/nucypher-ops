@@ -65,7 +65,7 @@ def needs_provider(method):
 
 class BaseCloudNodeConfigurator:
 
-    NAMESSPACE_CREATE_ACTIONS = ['add', 'create']
+    NAMESSPACE_CREATE_ACTIONS = ['add', 'create', 'copy']
     application = 'ursula'
     required_fields = [
         'eth_provider',
@@ -819,18 +819,23 @@ class BaseCloudNodeConfigurator:
             if existing_balance >= amount:
                 self.emitter.echo(f"host {name} already has {existing_balance} ETH.  funded.")
             else:
-                transaction = {
+                tx_hash = self.send_eth(wallet, host_op_address, amount)
+                self.emitter.echo(f"Broadcast transaction {tx_hash} for node: {host['host_nickname']}")
+
+    @needs_provider
+    def send_eth(self, web3, wallet, destination_address, amount_eth):
+
+        transaction = {
                     "nonce": web3.eth.getTransactionCount(wallet.address, 'pending'),
                     "from": wallet.address,
-                    "to": host_op_address,
-                    "value": web3.toWei(amount, 'ether'),
+                    "to": destination_address,
+                    "value": web3.toWei(amount_eth, 'ether'),
                     "gas": 21000,
                     "gasPrice": web3.eth.gasPrice * 2
                 }
-                signed_tx = wallet.sign_transaction(transaction)
-                tx_hash = web3.eth.send_raw_transaction(signed_tx.rawTransaction).hex()
-                self.emitter.echo(f"Broadcast transaction {tx_hash} for node: {host['host_nickname']}")
-
+        signed_tx = wallet.sign_transaction(transaction)
+        return web3.eth.send_raw_transaction(signed_tx.rawTransaction).hex()
+        
 
 class DigitalOceanConfigurator(BaseCloudNodeConfigurator):
 

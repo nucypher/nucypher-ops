@@ -135,5 +135,6 @@ def fund(amount, namespace, network, include_hosts):
     if balance < amount * len(hostnames):
         emitter.echo(f"balance on local wallet ({balance} ETH) is not enough to fund {len(hostnames)} with {amount} ETH.  Add more funds to local wallet ({wallet.address})")
         return
+
     deployer.fund_nodes(wallet, hostnames, amount)
     
