@@ -1,4 +1,4 @@
-- name: "Stop Geth and Ursula Containers if they are running"
+- name: "Stop Ursula Container"
   hosts: "{{ play_hosts }}"
   remote_user: "{{default_user}}"
   gather_facts: no

@@ -63,6 +63,13 @@
         src: "{{keystore_output.files[0].path}}"
         dest: "{{deployer_config_path}}/remote_worker_backups/"
 
+    - name: Stop Ursula
+      become: yes
+      docker_container:
+        name: ursula
+        state: stopped
+      ignore_errors: yes
+
     - name: "Run Staked Ursula (seed node)"
       become: yes
       become_user: nucypher
