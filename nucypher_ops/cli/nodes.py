@@ -100,7 +100,7 @@ def copy(from_path, to_network, to_namespace):
 
 
 @cli.command('list')
-@click.option('--json', 'as_json', help="list node data", default=False, is_flag=True)
+@click.option('--json', 'as_json', help="output json", default=False, is_flag=True)
 @click.option('--all', help="list all nodes under all networks and namespaces", default=False, is_flag=True)
 @click.option('--network', help="The network whose hosts you want to see.", type=click.STRING, default=DEFAULT_NETWORK)
 @click.option('--namespace', help="The network whose hosts you want to see.", type=click.STRING, default=DEFAULT_NAMESPACE)
@@ -119,9 +119,9 @@ def list(network, namespace, all, as_json):
     
     for deployer in deployers:
         if not as_json:
-            emitter.echo(f'{network}')
+            emitter.echo(f'{deployer.network}')
         for ns, hosts in deployer.get_namespace_data(namespace=namespace):
-            if not as_json:
+            if not as_json and hosts:
                 emitter.echo(f'\t{ns}')
             for name, data in hosts:
                 if not as_json:
