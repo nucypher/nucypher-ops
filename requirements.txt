@@ -1,4 +1,4 @@
-click
+asyncclick
 ansible
 hdwallet
 mako

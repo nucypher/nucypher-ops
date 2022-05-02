@@ -24,6 +24,7 @@ import maya
 import os
 import requests
 import time
+import warnings
 from ansible.executor.playbook_executor import PlaybookExecutor
 from ansible.inventory.manager import InventoryManager
 from ansible.parsing.dataloader import DataLoader
@@ -42,6 +43,7 @@ from nucypher_ops.constants import (
 )
 
 from nucypher_ops.ops import keygen
+from nucypher_ops.ops.contracts import NuCypherContractRegistry
 
 try:
     import boto3
@@ -49,7 +51,7 @@ except ImportError:
     pass
 
 NODE_CONFIG_STORAGE_KEY = 'configs'
-
+                            
 
 def needs_provider(method):
     def inner(self, *args, **kwargs):
@@ -60,6 +62,14 @@ def needs_provider(method):
             self.emitter.echo("web3 must be installed to use this functionality ('pip install web3')")
         w3 = web3.Web3(web3.Web3.HTTPProvider(provider))
         return method(self, w3, *args, **kwargs)
+    return inner
+
+def needs_registry(method):
+    def inner(self, *args, **kwargs):
+        if self.contract_registry is None:
+            registry = NuCypherContractRegistry(network_name=self.network)
+            self.contract_registry = {name: (address, abi) for name, version, address, abi in registry.fetch_latest_publication()} 
+        return method(self, self.contract_registry, *args, **kwargs)
     return inner
 
 
@@ -108,6 +118,7 @@ class BaseCloudNodeConfigurator:
         self.action = action
         self.resource_name = resource_name
         self.kwargs = kwargs
+        self.contract_registry = None
 
         self.envvars = envvars or []
         if self.envvars:
@@ -481,29 +492,29 @@ class BaseCloudNodeConfigurator:
         self.update_captured_instance_data(self.output_capture)
         self.give_helpful_hints(node_names, backup=True, playbook=playbook)
 
-    def get_worker_status(self, node_names):
+    def get_worker_status(self, node_names, fast=False):
 
         playbook = Path(PLAYBOOKS).joinpath('get_workers_status.yml')
+        if not fast:
+            self.update_generate_inventory(node_names)
 
-        self.update_generate_inventory(node_names)
+            loader = DataLoader()
+            inventory = InventoryManager(
+                loader=loader, sources=self.inventory_path)
+            callback = AnsiblePlayBookResultsCollector(sock=self.emitter, return_results=self.output_capture, filter_output=[
+                                                    "Print Ursula Status Data", "Print Last Log Line"])
+            variable_manager = VariableManager(loader=loader, inventory=inventory)
 
-        loader = DataLoader()
-        inventory = InventoryManager(
-            loader=loader, sources=self.inventory_path)
-        callback = AnsiblePlayBookResultsCollector(sock=self.emitter, return_results=self.output_capture, filter_output=[
-                                                   "Print Ursula Status Data", "Print Last Log Line"])
-        variable_manager = VariableManager(loader=loader, inventory=inventory)
-
-        executor = PlaybookExecutor(
-            playbooks=[playbook],
-            inventory=inventory,
-            variable_manager=variable_manager,
-            loader=loader,
-            passwords=dict(),
-        )
-        executor._tqm._stdout_callback = callback
-        executor.run()
-        self.update_captured_instance_data(self.output_capture)
+            executor = PlaybookExecutor(
+                playbooks=[playbook],
+                inventory=inventory,
+                variable_manager=variable_manager,
+                loader=loader,
+                passwords=dict(),
+            )
+            executor._tqm._stdout_callback = callback
+            executor.run()
+            self.update_captured_instance_data(self.output_capture)
 
         self.give_helpful_hints(node_names, playbook=playbook)
 
@@ -637,7 +648,7 @@ class BaseCloudNodeConfigurator:
             return None
 
     def get_all_hosts(self):
-        return [(node_name, host_data) for node_name, host_data in self.config['instances'].items()]
+        return [(node_name, host_data) for node_name, host_data in self.config.get('instances', {}).items()]
 
     def add_already_configured_node(self, host_data):
         if self.get_host_by_name(host_data['host_nickname']):
@@ -683,32 +694,18 @@ class BaseCloudNodeConfigurator:
             self.emitter.echo(
                 f" keypair file: {self.config['keypair_path']}", color='yellow')
 
-        if nodes := [h for h in self.get_all_hosts() if h[0] in node_names]:
-            self.emitter.echo("Host Info")
-            for node_name, host_data in nodes:
-                dep = CloudDeployers.get_deployer(host_data['provider'])(
-                    self.emitter,
-                    pre_config=self.config,
-                    namespace=self.namespace,
-                    network=self.network
-                )
-                self.emitter.echo(
-                    f"\t{node_name}: {host_data['publicaddress']}")
-                self.emitter.echo(
-                    f"\t\t ssh: {dep.format_ssh_cmd(host_data)}", color="yellow")
-                if host_data.get('operator address'):
-                    self.emitter.echo(
-                        f"\t\t operator address: {host_data['operator address']}")
-                    if self.config.get('local_blockchain_provider'):
-                        self.emitter.echo(
-                            f"\t\t operator ETH balance: {self.get_wallet_balance(host_data['operator address'], eth=True)}"
-                        )
-
         if backup:
             self.emitter.echo(
                 " *** Local backups containing sensitive data may have been created. ***", color="red")
             self.emitter.echo(
                 f" Backup data can be found here: {self.config_dir}/remote_worker_backups/")
+
+        if nodes := [h for h in self.get_all_hosts() if h[0] in node_names]:
+            self.emitter.echo("Host Info")
+            # asyncio.gather(*[print_node_data(self, node_name, host_data) for  node_name, host_data in nodes])
+            for node_name, host_data in nodes:
+                print_node_data(self, node_name, host_data)
+
 
     def format_ssh_cmd(self, host_data):
 
@@ -804,6 +801,31 @@ class BaseCloudNodeConfigurator:
         if eth:
             return web3.fromWei(balance, 'ether')
         return balance
+    
+    @needs_registry
+    @needs_provider
+    def get_staking_provider(self, web3, contracts, address):        
+        contract_address, abi =  contracts['SimplePREApplication']
+        contract = web3.eth.contract(abi=abi, address=contract_address)
+        return contract.functions.stakingProviderFromOperator(address).call()
+
+    @needs_registry
+    @needs_provider
+    def check_is_confirmed(self, web3, contracts, address):        
+        contract_address, abi =  contracts['SimplePREApplication']
+        contract = web3.eth.contract(abi=abi, address=contract_address)
+        return contract.functions.isOperatorConfirmed(address).call()
+
+    @needs_registry
+    @needs_provider
+    def get_stake_amount(self, web3, contracts, address):        
+        contract_address, abi =  contracts['SimplePREApplication']
+        contract = web3.eth.contract(abi=abi, address=contract_address)
+        balance = contract.functions.authorizedStake(address).call()
+        return int(web3.fromWei(balance, 'ether'))
+
+    def query_active_node(self, public_address):
+        return requests.get(f"https://{public_address}:9151/status/?json=true", verify=False).json()
 
     @needs_provider
     def fund_nodes(self, web3, wallet, node_names, amount):
@@ -1519,3 +1541,50 @@ class CloudDeployers:
     @staticmethod
     def get_deployer(name):
         return getattr(CloudDeployers, name)
+
+
+def print_node_data(self, node_name, host_data):
+    warnings.filterwarnings("ignore")
+    dep = CloudDeployers.get_deployer(host_data['provider'])(
+        self.emitter,
+        pre_config=self.config,
+        namespace=self.namespace,
+        network=self.network
+    )
+    self.emitter.echo(
+        f"\t{node_name}: {host_data['publicaddress']}")
+    self.emitter.echo(
+        f"\t\t {dep.format_ssh_cmd(host_data)}", color="yellow")
+    if host_data.get('operator address'):
+        self.emitter.echo(
+            f"\t\t operator address: {host_data['operator address']}")
+        if self.config.get('local_blockchain_provider'):
+            wallet_balance = self.get_wallet_balance(host_data['operator address'], eth=True)
+            self.emitter.echo(
+                f"\t\t operator ETH balance: {wallet_balance}"
+            )
+            staking_provider = None
+            try:
+                staking_provider = self.get_staking_provider(host_data['operator address'])
+                self.emitter.echo(f"\t\t staking provider address: {staking_provider}")
+                if staking_provider:
+                    # if we have a staking provider, lets check if the node is confirmed
+                    is_confirmed = self.check_is_confirmed(host_data['operator address'])
+                    self.emitter.echo(f"\t\t operator confirmed: {is_confirmed}")
+                    stake_amount = self.get_stake_amount(staking_provider)
+                    self.emitter.echo(f"\t\t staked amount: {stake_amount:,}")
+                    if is_confirmed:
+                        # if the node is confirmed, we should be able to query it
+                        try:
+                            node_response = self.query_active_node(host_data['publicaddress'])
+                            self.emitter.echo("\t\t active node status:")
+                            self.emitter.echo(f"\t\t\tnickname: {node_response['nickname']['text']}")
+                            self.emitter.echo(f"\t\t\trest url: {node_response['rest_url']}")
+                            self.emitter.echo(f"\t\t\tknown nodes: {len(node_response['known_nodes'])}")
+                            self.emitter.echo(f"\t\t\tfleet state: {len(node_response['fleet_state'])}")
+                        except Exception as e:
+                            print (e)
+            except Exception as e:
+                raise e
+            if not staking_provider:
+                self.emitter.echo(f"\t\t staking provider: NOT BOUND TO STAKING PROVIDER")
