@@ -40,8 +40,7 @@ setup(
     description=ABOUT['__summary__'],
     license=ABOUT['__license__'],
     install_requires=[
-        'anyio',
-        'asyncclick',
+        'click',
         'colorama',
         'ansible',
         'hdwallet',

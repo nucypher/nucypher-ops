@@ -702,9 +702,54 @@ class BaseCloudNodeConfigurator:
 
         if nodes := [h for h in self.get_all_hosts() if h[0] in node_names]:
             self.emitter.echo("Host Info")
-            # asyncio.gather(*[print_node_data(self, node_name, host_data) for  node_name, host_data in nodes])
             for node_name, host_data in nodes:
-                print_node_data(self, node_name, host_data)
+                self.print_node_data(node_name, host_data)
+    
+    def print_node_data(self, node_name, host_data):
+        warnings.filterwarnings("ignore")
+        dep = CloudDeployers.get_deployer(host_data['provider'])(
+            self.emitter,
+            pre_config=self.config,
+            namespace=self.namespace,
+            network=self.network
+        )
+        self.emitter.echo(
+            f"\t{node_name}: {host_data['publicaddress']}")
+        self.emitter.echo(
+            f"\t\t {dep.format_ssh_cmd(host_data)}", color="yellow")
+        if host_data.get('operator address'):
+            self.emitter.echo(
+                f"\t\t operator address: {host_data['operator address']}")
+            if self.config.get('local_blockchain_provider'):
+                wallet_balance = self.get_wallet_balance(host_data['operator address'], eth=True)
+                self.emitter.echo(
+                    f"\t\t operator ETH balance: {wallet_balance}"
+                )
+                staking_provider = None
+                try:
+                    staking_provider = self.get_staking_provider(host_data['operator address'])
+                    self.emitter.echo(f"\t\t staking provider address: {staking_provider}")
+                    if staking_provider:
+                        # if we have a staking provider, lets check if the node is confirmed
+                        is_confirmed = self.check_is_confirmed(host_data['operator address'])
+                        self.emitter.echo(f"\t\t operator confirmed: {is_confirmed}")
+                        stake_amount = self.get_stake_amount(staking_provider)
+                        self.emitter.echo(f"\t\t staked amount: {stake_amount:,}")
+                        if is_confirmed:
+                            # if the node is confirmed, we should be able to query it
+                            try:
+                                node_response = self.query_active_node(host_data['publicaddress'])
+                                self.emitter.echo("\t\t active node status:")
+                                self.emitter.echo(f"\t\t\tnickname: {node_response['nickname']['text']}")
+                                self.emitter.echo(f"\t\t\trest url: {node_response['rest_url']}")
+                                self.emitter.echo(f"\t\t\tknown nodes: {len(node_response['known_nodes'])}")
+                                self.emitter.echo(f"\t\t\tfleet state: {len(node_response['fleet_state'])}")
+                            except Exception as e:
+                                print (e)
+                except Exception as e:
+                    raise e
+                if not staking_provider:
+                    self.emitter.echo(f"\t\t staking provider: NOT BOUND TO STAKING PROVIDER")
 
 
     def format_ssh_cmd(self, host_data):
@@ -1542,49 +1587,3 @@ class CloudDeployers:
     def get_deployer(name):
         return getattr(CloudDeployers, name)
 
-
-def print_node_data(self, node_name, host_data):
-    warnings.filterwarnings("ignore")
-    dep = CloudDeployers.get_deployer(host_data['provider'])(
-        self.emitter,
-        pre_config=self.config,
-        namespace=self.namespace,
-        network=self.network
-    )
-    self.emitter.echo(
-        f"\t{node_name}: {host_data['publicaddress']}")
-    self.emitter.echo(
-        f"\t\t {dep.format_ssh_cmd(host_data)}", color="yellow")
-    if host_data.get('operator address'):
-        self.emitter.echo(
-            f"\t\t operator address: {host_data['operator address']}")
-        if self.config.get('local_blockchain_provider'):
-            wallet_balance = self.get_wallet_balance(host_data['operator address'], eth=True)
-            self.emitter.echo(
-                f"\t\t operator ETH balance: {wallet_balance}"
-            )
-            staking_provider = None
-            try:
-                staking_provider = self.get_staking_provider(host_data['operator address'])
-                self.emitter.echo(f"\t\t staking provider address: {staking_provider}")
-                if staking_provider:
-                    # if we have a staking provider, lets check if the node is confirmed
-                    is_confirmed = self.check_is_confirmed(host_data['operator address'])
-                    self.emitter.echo(f"\t\t operator confirmed: {is_confirmed}")
-                    stake_amount = self.get_stake_amount(staking_provider)
-                    self.emitter.echo(f"\t\t staked amount: {stake_amount:,}")
-                    if is_confirmed:
-                        # if the node is confirmed, we should be able to query it
-                        try:
-                            node_response = self.query_active_node(host_data['publicaddress'])
-                            self.emitter.echo("\t\t active node status:")
-                            self.emitter.echo(f"\t\t\tnickname: {node_response['nickname']['text']}")
-                            self.emitter.echo(f"\t\t\trest url: {node_response['rest_url']}")
-                            self.emitter.echo(f"\t\t\tknown nodes: {len(node_response['known_nodes'])}")
-                            self.emitter.echo(f"\t\t\tfleet state: {len(node_response['fleet_state'])}")
-                        except Exception as e:
-                            print (e)
-            except Exception as e:
-                raise e
-            if not staking_provider:
-                self.emitter.echo(f"\t\t staking provider: NOT BOUND TO STAKING PROVIDER")
