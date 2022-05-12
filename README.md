@@ -11,8 +11,8 @@ $ nucypher-ops --help
 
 ## Basic Usage 
 ```
-$ nucypher-ops nodes create
-$ nucypher-ops ursula deploy
+$ nucypher-ops nodes create # you will end up with a node running on either AWS or DigitalOcean ready for install
+$ nucypher-ops ursula deploy # you will have an Ursula fully installed and ready for bonding.
 ```
 
 For a more detailed guide on how to get started, follow this [tutorial](https://docs.nucypher.com/en/latest/pre_application/cloud_node_management.html) or this [community maintained guide](https://promethium.dev/t/nucypher-ops/)
