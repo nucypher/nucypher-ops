@@ -74,8 +74,8 @@ def add(host_address, login_name, key_path, ssh_port, nickname, namespace, netwo
 
 
 @cli.command('copy')
-@click.option('--to-namespace', help="Namespace for these operations.  Used to address hosts and data locally and name hosts on cloud platforms.", type=click.STRING, default='nucypher')
-@click.option('--to-network', help="The Nucypher network name these hosts will run on. (default mainnet)", type=click.STRING, default=DEFAULT_NETWORK)
+@click.option('--to-namespace', help="Namespace for these operations.  Used to address hosts and data locally and name hosts on cloud platforms.", type=click.STRING, required=True)
+@click.option('--to-network', help="The Nucypher network name these hosts will run on. (default mainnet)", type=click.STRING,  required=True)
 @click.option('--from', 'from_path', help="The 'path' of a node in /network/namespace/name format ie. '/mainnet/aws-us-east-nodes/aws-1'", type=click.STRING, required=True)
 def copy(from_path, to_network, to_namespace):
     """
