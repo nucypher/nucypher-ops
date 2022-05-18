@@ -17,6 +17,7 @@
 
 import copy
 import json
+import random
 
 import pkgutil
 
@@ -909,6 +910,34 @@ class DigitalOceanConfigurator(BaseCloudNodeConfigurator):
     default_region = 'SFO3'
     provider_name = 'digitalocean'
 
+
+    def get_region(self):
+        
+        regions = [
+            'NYC1',
+            'NYC3',
+            'AMS3',
+            'SFO3',
+            'SGP1',
+            'LON1',
+            'FRA1',
+            'TOR1',
+            'BLR'
+        ]
+
+        if region := self.kwargs.get('region') or os.environ.get('DIGITALOCEAN_REGION') or self.config.get(
+            'digital-ocean-region'):
+            self.emitter.echo(f'Using Digital Ocean region: {region}')
+            if not region in regions:
+                raise AttributeError(f"{region} is not a valid DigitalOcean region. Find available regions here: https://www.digitalocean.com/docs/platform/availability-matrix/")
+        else:
+            region = random.choice(regions)
+            self.emitter.echo(
+                f'Randomly choosing DigitalOcean region: {region}, to change regions call this command with --region specified or `export DIGITALOCEAN_REGION: https://www.digitalocean.com/docs/platform/availability-matrix/\n', color='yellow')
+
+        return region
+        
+        
     @property
     def instance_size(self):
         return self.kwargs.get('instance_type') or "s-1vcpu-2gb"
@@ -933,11 +962,7 @@ class DigitalOceanConfigurator(BaseCloudNodeConfigurator):
                 raise AttributeError(
                     "Could not continue without token or DIGITALOCEAN_ACCESS_TOKEN environment variable.")
 
-        self.region = os.environ.get('DIGITALOCEAN_REGION') or self.config.get(
-            'digital-ocean-region') or self.kwargs.get('region') or self.default_region
-
-        self.emitter.echo(
-            f'using DigitalOcean region: {self.region}, to change regions call this command with --region specified or `export DIGITALOCEAN_REGION: https://www.digitalocean.com/docs/platform/availability-matrix/\n', color='yellow')
+        self.region = self.get_region()
 
         self.sshkey = self.config.get('sshkey')
         if not self.sshkey:
