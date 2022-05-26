@@ -922,7 +922,7 @@ class DigitalOceanConfigurator(BaseCloudNodeConfigurator):
             'LON1',
             'FRA1',
             'TOR1',
-            'BLR'
+            'BLR1'
         ]
 
         if region := self.kwargs.get('region') or os.environ.get('DIGITALOCEAN_REGION') or self.config.get(
