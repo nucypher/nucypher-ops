@@ -134,7 +134,7 @@ def list(network, namespace, all, as_json):
 @click.option('--cloudprovider', help="aws or digitalocean")
 @click.option('--namespace', help="Namespace for these operations.  Used to address hosts and data locally and name hosts on cloud platforms.", type=click.STRING, default=DEFAULT_NAMESPACE)
 @click.option('--network', help="The Nucypher network name these hosts will run on.", type=click.STRING, default=DEFAULT_NETWORK)
-@click.option('--include-host', 'include_hosts', help="destroy only the named hosts", multiple=True, type=click.STRING)
+@click.option('--include-host', 'include_hosts', help="Peform this operation on only the named hosts", multiple=True, type=click.STRING)
 def destroy(cloudprovider, namespace, network, include_hosts):
     """Cleans up all previously created resources for the given network for the same cloud provider"""
 
@@ -163,7 +163,7 @@ def destroy(cloudprovider, namespace, network, include_hosts):
 @cli.command('remove')
 @click.option('--namespace', help="Namespace for these operations.  Used to address hosts and data locally and name hosts on cloud platforms.", type=click.STRING, default=DEFAULT_NAMESPACE)
 @click.option('--network', help="The Nucypher network name these hosts will run on.", type=click.STRING, default=DEFAULT_NETWORK)
-@click.option('--include-host', 'include_hosts', help="destroy only the named hosts", multiple=True, type=click.STRING)
+@click.option('--include-host', 'include_hosts', help="Peform this operation on only the named hosts", multiple=True, type=click.STRING)
 def remove(namespace, network, include_hosts):
     """Removes managed resources for the given network/namespace"""
 

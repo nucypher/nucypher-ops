@@ -83,7 +83,7 @@ def deploy(nucypher_image, namespace, network, include_hosts, envvars, cliargs):
 @click.option('--fast', help="Only call blockchain and http methods, skip ssh into each node", default=None, is_flag=True)
 @click.option('--namespace', help="Namespace for these operations.  Used to address hosts and data locally and name hosts on cloud platforms.", type=click.STRING, default=DEFAULT_NAMESPACE)
 @click.option('--network', help="The Nucypher network name these hosts will run on.", type=click.STRING, default=DEFAULT_NETWORK)
-@click.option('--include-host', 'include_hosts', help="Query status on only the named hosts", multiple=True, type=click.STRING)
+@click.option('--include-host', 'include_hosts', help="Peform this operation on only the named hosts", multiple=True, type=click.STRING)
 def status(fast, namespace, network, include_hosts):
     """Displays ursula status and updates worker data in stakeholder config"""
 
@@ -100,7 +100,7 @@ def status(fast, namespace, network, include_hosts):
 @click.option('--amount', help="The amount to fund each node.  Default is .003", type=click.FLOAT, default=.003)
 @click.option('--namespace', help="Namespace for these operations.  Used to address hosts and data locally and name hosts on cloud platforms.", type=click.STRING, default=DEFAULT_NAMESPACE)
 @click.option('--network', help="The Nucypher network name these hosts will run on.", type=click.STRING, default=DEFAULT_NETWORK)
-@click.option('--include-host', 'include_hosts', help="Query status on only the named hosts", multiple=True, type=click.STRING)
+@click.option('--include-host', 'include_hosts', help="Peform this operation on only the named hosts", multiple=True, type=click.STRING)
 def fund(amount, namespace, network, include_hosts):
     """
     fund remote nodes autmoatically using a locally managed burner wallet
@@ -139,3 +139,18 @@ def fund(amount, namespace, network, include_hosts):
 
     deployer.fund_nodes(wallet, hostnames, amount)
     
+@cli.command('defund')
+@click.option('--amount', help="The amount to defund.  Default is the entire balance of the node's wallet.", type=click.FLOAT, default=None)
+@click.option('--to-address', help="To which ETH address are you sending the proceeds?", required=True)
+@click.option('--namespace', help="Namespace for these operations.  Used to address hosts and data locally and name hosts on cloud platforms.", type=click.STRING, default=DEFAULT_NAMESPACE)
+@click.option('--network', help="The Nucypher network name these hosts will run on.", type=click.STRING, default=DEFAULT_NETWORK)
+@click.option('--include-host', 'include_hosts', help="Peform this operation on only the named hosts", multiple=True, type=click.STRING)
+def defund(amount, to_address, namespace, network, include_hosts):
+
+    deployer = CloudDeployers.get_deployer('generic')(emitter, namespace=namespace, network=network)
+
+    hostnames = deployer.config['instances'].keys()
+    if include_hosts:
+        hostnames = include_hosts
+
+    deployer.defund_nodes(hostnames, to=to_address, amount=amount)

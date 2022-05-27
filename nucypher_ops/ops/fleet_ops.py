@@ -894,6 +894,7 @@ class BaseCloudNodeConfigurator:
     def send_eth(self, web3, wallet, destination_address, amount_eth):
 
         transaction = {
+                    'chainId': self.chain_id,
                     "nonce": web3.eth.getTransactionCount(wallet.address, 'pending'),
                     "from": wallet.address,
                     "to": destination_address,
@@ -903,7 +904,52 @@ class BaseCloudNodeConfigurator:
                 }
         signed_tx = wallet.sign_transaction(transaction)
         return web3.eth.send_raw_transaction(signed_tx.rawTransaction).hex()
-        
+
+    def get_backup_path_by_nickname(self, nickname):
+        rootpath = os.path.join(self.config_dir, 'remote_worker_backups')
+        return os.path.join(rootpath,self.config['instances'][nickname]['publicaddress'])
+
+    def get_node_config(self, nickname):
+        return self.config['instances'][nickname]
+
+    @needs_provider
+    def defund_nodes(self, web3, hostnames, to=None, amount=None):
+        for hostname in hostnames:
+            amount_to_send = None
+            backuppath = self.get_backup_path_by_nickname(hostname)
+            nodeconfig = self.get_node_config(hostname)
+            for keystorepath in Path(backuppath).rglob('*UTC*'):  # should only be one
+                ethpw = self.config['ethpassword']
+                with open(keystorepath) as keyfile:
+                    encrypted_key = keyfile.read()
+                    private_key = web3.eth.account.decrypt(encrypted_key, ethpw)
+                    wallet = web3.eth.account.from_key(private_key)
+                    balance = web3.eth.get_balance(wallet.address)
+                    if not balance:
+                        self.emitter.echo(f'{hostname} has no ETH')
+                        continue
+                    if amount:
+                        amount_to_send = web3.toWei(amount, 'ether')
+                    else:
+                        # we are sending all of it
+                        needed_gas = web3.eth.gasPrice * 21000 * 2
+                        amount_minus_gas = balance - needed_gas
+                        amount_to_send = amount_minus_gas
+
+                    if amount_to_send < 0:
+                        msg = f"amount to send, including transaction gas: {web3.fromWei(max(amount_to_send, needed_gas), 'ether')} is more than total available ETH ({web3.fromWei(balance, 'ether')})"
+                        if len(hostnames) > 1:
+                            # keep going but notify
+                            self.emitter.echo(msg)
+                            continue
+                        else:
+                            raise AttributeError(msg)
+                    print (amount_to_send)
+                    self.emitter.echo(f"Attempting to send {web3.fromWei(amount_to_send, 'ether')} ETH from {hostname} to {to} in 3 seconds.")
+                    time.sleep(3)
+                    result = self.send_eth(wallet, to, web3.fromWei(amount_to_send, 'ether'))
+                    self.emitter.echo(f'Broadcast transaction: {result}')
+
 
 class DigitalOceanConfigurator(BaseCloudNodeConfigurator):
 
