@@ -47,7 +47,8 @@ setup(
         'mako',
         'requests',
         'maya',
-        'appdirs'
+        'appdirs',
+        'web3'
     ],
     entry_points='''
         [console_scripts]
