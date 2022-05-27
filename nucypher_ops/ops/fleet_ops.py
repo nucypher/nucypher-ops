@@ -59,8 +59,8 @@ def needs_provider(method):
         provider = self.get_local_blockchain_provider()
         try:
             import web3
-        except ImportError:
-            self.emitter.echo("web3 must be installed to use this functionality ('pip install web3')")
+        except ModuleNotFoundError as e:
+            raise ImportError("web3 must be installed to use this functionality ('pip install web3')")
         w3 = web3.Web3(web3.Web3.HTTPProvider(provider))
         return method(self, w3, *args, **kwargs)
     return inner
@@ -944,7 +944,6 @@ class BaseCloudNodeConfigurator:
                             continue
                         else:
                             raise AttributeError(msg)
-                    print (amount_to_send)
                     self.emitter.echo(f"Attempting to send {web3.fromWei(amount_to_send, 'ether')} ETH from {hostname} to {to} in 3 seconds.")
                     time.sleep(3)
                     result = self.send_eth(wallet, to, web3.fromWei(amount_to_send, 'ether'))
@@ -955,7 +954,6 @@ class DigitalOceanConfigurator(BaseCloudNodeConfigurator):
 
     default_region = 'SFO3'
     provider_name = 'digitalocean'
-
 
     def get_region(self):
         
