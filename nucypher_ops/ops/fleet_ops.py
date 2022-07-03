@@ -48,7 +48,12 @@ from nucypher_ops.ops.contracts import NuCypherContractRegistry
 
 try:
     import boto3
-except ImportError:
+except ModuleNotFoundError:
+    pass
+
+try:
+    from web3.exceptions import TransactionNotFound
+except ModuleNotFoundError:
     pass
 
 NODE_CONFIG_STORAGE_KEY = 'configs'
