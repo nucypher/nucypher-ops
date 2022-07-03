@@ -877,6 +877,7 @@ class BaseCloudNodeConfigurator:
     def fund_nodes(self, web3, wallet, node_names, amount):
         hosts = [h for h in self.get_all_hosts() if h[0] in node_names]
         for name, host in hosts:
+            next_tx = False
             if not host.get('operator address'):
                 raise AttributeError(f"missing operator address for node: {host['host_nickname']}.  Deploy ursula first to create an operator address.")
 
@@ -888,6 +889,18 @@ class BaseCloudNodeConfigurator:
                 self.emitter.echo(f"host {name} already has {existing_balance} ETH.  funded.")
             else:
                 tx_hash = self.send_eth(wallet, host_op_address, amount)
+                while next_tx is False:
+                
+                    try:
+                        tx_state = web3.eth.get_transaction(tx_hash)
+                        if self.get_wallet_balance(host_op_address, eth=True) > 0:
+                            next_tx = True
+                        else:
+                            time.sleep(1)
+                    except TransactionNotFound:
+                        self.emitter.echo('waiting for transaction confirmation...')
+                        time.sleep(1)
+
                 self.emitter.echo(f"Broadcast transaction {tx_hash} for node: {host['host_nickname']}")
 
     @needs_provider
