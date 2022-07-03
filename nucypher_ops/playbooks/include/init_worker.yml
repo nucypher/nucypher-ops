@@ -60,7 +60,7 @@
     - name: "echo nucypher_container_geth_datadir"
       debug:
         verbosity: 0
-        var: nucypher_container_geth_datadir
+        msg: "{{nucypher_container_geth_datadir}}"
 
     # create a local geth account if one doesn't exist
     - name: "create new account and capture the address"
