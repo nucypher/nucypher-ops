@@ -58,7 +58,7 @@ def deploy(payment_network, payment_provider, eth_provider, nucypher_image, seed
 @click.option('--include-host', 'include_hosts', help="specify hosts to update", multiple=True, type=click.STRING)
 @click.option('--env', '-e', 'envvars', help="environment variables (ENVVAR=VALUE)", multiple=True, type=click.STRING, default=[])
 @click.option('--cli', '-c', 'cliargs', help="cli arguments for 'nucypher run': eg.'--max-gas-price 50'/'--c max-gas-price=50'", multiple=True, type=click.STRING, default=[])
-def deploy(nucypher_image, namespace, network, include_hosts, envvars, cliargs):
+def update(nucypher_image, namespace, network, include_hosts, envvars, cliargs):
     """Update images and change cli/env options on already running hosts"""
 
     deployer = CloudDeployers.get_deployer('generic')(emitter,
