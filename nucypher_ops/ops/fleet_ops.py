@@ -236,6 +236,10 @@ class BaseCloudNodeConfigurator:
         return []
 
     @property
+    def backup_directory(self):
+        return f'{self.config_dir}/remote_worker_backups/'
+
+    @property
     def has_wallet(self):
         return self.config.get('local_wallet_keystore') is not None
 
@@ -704,7 +708,7 @@ class BaseCloudNodeConfigurator:
             self.emitter.echo(
                 " *** Local backups containing sensitive data may have been created. ***", color="red")
             self.emitter.echo(
-                f" Backup data can be found here: {self.config_dir}/remote_worker_backups/")
+                f" Backup data can be found here: {self.backup_directory}")
 
         if nodes := [h for h in self.get_all_hosts() if h[0] in node_names]:
             self.emitter.echo("Host Info")
@@ -924,8 +928,7 @@ class BaseCloudNodeConfigurator:
         return web3.eth.send_raw_transaction(signed_tx.rawTransaction).hex()
 
     def get_backup_path_by_nickname(self, nickname):
-        rootpath = os.path.join(self.config_dir, 'remote_worker_backups')
-        return os.path.join(rootpath,self.config['instances'][nickname]['publicaddress'])
+        return os.path.join(self.backup_directory, self.config['instances'][nickname]['publicaddress'])
 
     def get_node_config(self, nickname):
         return self.config['instances'][nickname]
