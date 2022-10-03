@@ -3,6 +3,10 @@
   remote_user: "{{default_user}}"
   gather_facts: no
   tasks:
+    - name: Keep disk space clean by pruning unneeded docker debris
+      become: yes
+      shell: docker system prune -af
+      
     - name: "pull {{docker_image}}"
       become: yes
       docker_image:

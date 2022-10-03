@@ -15,6 +15,6 @@ def index():
 
 index.add_command(nodes)
 index.add_command(ursula)
-# index.add_command(ethereum)
+index.add_command(ethereum)
 index.add_command(namespaces)
 index.add_command(porter)

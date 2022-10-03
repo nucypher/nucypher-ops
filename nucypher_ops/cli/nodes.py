@@ -178,3 +178,13 @@ def remove(namespace, network, include_hosts):
     emitter.echo("\ntype 'y' to continue")
     if click.getchar(echo=False) == 'y':
         deployer.remove_resources(hostnames)
+
+@cli.command('config')
+@click.option('--namespace', help="Namespace for these operations.  Used to address hosts and data locally and name hosts on cloud platforms.", type=click.STRING, default=DEFAULT_NAMESPACE)
+@click.option('--network', help="The Nucypher network name these hosts will run on.", type=click.STRING, default=DEFAULT_NETWORK)
+def config(namespace, network):
+    """prints the config path for a given network/namespace"""
+
+    deployer = CloudDeployers.get_deployer('generic')(
+    emitter, network=network, namespace=namespace)
+    emitter.echo(deployer.config_path)

@@ -57,7 +57,7 @@ except ModuleNotFoundError:
     pass
 
 NODE_CONFIG_STORAGE_KEY = 'configs'
-                            
+
 
 def needs_provider(method):
     def inner(self, *args, **kwargs):
@@ -65,16 +65,19 @@ def needs_provider(method):
         try:
             import web3
         except ModuleNotFoundError as e:
-            raise ImportError("web3 must be installed to use this functionality ('pip install web3')")
+            raise ImportError(
+                "web3 must be installed to use this functionality ('pip install web3')")
         w3 = web3.Web3(web3.Web3.HTTPProvider(provider))
         return method(self, w3, *args, **kwargs)
     return inner
+
 
 def needs_registry(method):
     def inner(self, *args, **kwargs):
         if self.contract_registry is None:
             registry = NuCypherContractRegistry(network_name=self.network)
-            self.contract_registry = {name: (address, abi) for name, version, address, abi in registry.fetch_latest_publication()} 
+            self.contract_registry = {name: (
+                address, abi) for name, version, address, abi in registry.fetch_latest_publication()}
         return method(self, self.contract_registry, *args, **kwargs)
     return inner
 
@@ -162,7 +165,8 @@ class BaseCloudNodeConfigurator:
             try:
                 self.config = json.load(open(self.config_path))
             except json.decoder.JSONDecodeError as e:
-                self.emitter.echo(f"could not decode config file at: {self.config_path}")
+                self.emitter.echo(
+                    f"could not decode config file at: {self.config_path}")
                 raise
             self.namespace_network = self.config['namespace']
         elif kwargs.get('read_only'):
@@ -287,7 +291,7 @@ class BaseCloudNodeConfigurator:
                      self.config['ethpassword']),
                 ],
             'cliargs': [
-            ]
+                    ]
         }
 
         if generate_keymaterial or kwargs.get('migrate_nucypher') or kwargs.get('init'):
@@ -512,8 +516,9 @@ class BaseCloudNodeConfigurator:
             inventory = InventoryManager(
                 loader=loader, sources=self.inventory_path)
             callback = AnsiblePlayBookResultsCollector(sock=self.emitter, return_results=self.output_capture, filter_output=[
-                                                    "Print Ursula Status Data", "Print Last Log Line"])
-            variable_manager = VariableManager(loader=loader, inventory=inventory)
+                "Print Ursula Status Data", "Print Last Log Line"])
+            variable_manager = VariableManager(
+                loader=loader, inventory=inventory)
 
             executor = PlaybookExecutor(
                 playbooks=[playbook],
@@ -662,7 +667,8 @@ class BaseCloudNodeConfigurator:
 
     def add_already_configured_node(self, host_data):
         if self.get_host_by_name(host_data['host_nickname']):
-            raise AttributeError(f"Host with nickname {host_data['host_nickname']} already exists in {self.network}/{self.namespace}")
+            raise AttributeError(
+                f"Host with nickname {host_data['host_nickname']} already exists in {self.network}/{self.namespace}")
         host_data['index'] = self.instance_count
         self.config['instances'][host_data['host_nickname']] = host_data
         self._write_config()
@@ -714,7 +720,7 @@ class BaseCloudNodeConfigurator:
             self.emitter.echo("Host Info")
             for node_name, host_data in nodes:
                 self.print_node_data(node_name, host_data)
-    
+
     def print_node_data(self, node_name, host_data):
         warnings.filterwarnings("ignore")
         dep = CloudDeployers.get_deployer(host_data['provider'])(
@@ -731,36 +737,47 @@ class BaseCloudNodeConfigurator:
             self.emitter.echo(
                 f"\t\t operator address: {host_data['operator address']}")
             if self.config.get('local_blockchain_provider'):
-                wallet_balance = self.get_wallet_balance(host_data['operator address'], eth=True)
+                wallet_balance = self.get_wallet_balance(
+                    host_data['operator address'], eth=True)
                 self.emitter.echo(
                     f"\t\t operator ETH balance: {wallet_balance}"
                 )
                 staking_provider = None
                 try:
-                    staking_provider = self.get_staking_provider(host_data['operator address'])
-                    self.emitter.echo(f"\t\t staking provider address: {staking_provider}")
+                    staking_provider = self.get_staking_provider(
+                        host_data['operator address'])
+                    self.emitter.echo(
+                        f"\t\t staking provider address: {staking_provider}")
                     if staking_provider:
                         # if we have a staking provider, lets check if the node is confirmed
-                        is_confirmed = self.check_is_confirmed(host_data['operator address'])
-                        self.emitter.echo(f"\t\t operator confirmed: {is_confirmed}")
+                        is_confirmed = self.check_is_confirmed(
+                            host_data['operator address'])
+                        self.emitter.echo(
+                            f"\t\t operator confirmed: {is_confirmed}")
                         stake_amount = self.get_stake_amount(staking_provider)
-                        self.emitter.echo(f"\t\t staked amount: {stake_amount:,}")
+                        self.emitter.echo(
+                            f"\t\t staked amount: {stake_amount:,}")
                         if is_confirmed:
                             # if the node is confirmed, we should be able to query it
                             try:
-                                node_response = self.query_active_node(host_data['publicaddress'])
+                                node_response = self.query_active_node(
+                                    host_data['publicaddress'])
                                 self.emitter.echo("\t\t active node status:")
-                                self.emitter.echo(f"\t\t\tnickname: {node_response['nickname']['text']}")
-                                self.emitter.echo(f"\t\t\trest url: {node_response['rest_url']}")
-                                self.emitter.echo(f"\t\t\tknown nodes: {len(node_response['known_nodes'])}")
-                                self.emitter.echo(f"\t\t\tfleet state: {len(node_response['fleet_state'])}")
+                                self.emitter.echo(
+                                    f"\t\t\tnickname: {node_response['nickname']['text']}")
+                                self.emitter.echo(
+                                    f"\t\t\trest url: {node_response['rest_url']}")
+                                self.emitter.echo(
+                                    f"\t\t\tknown nodes: {len(node_response['known_nodes'])}")
+                                self.emitter.echo(
+                                    f"\t\t\tfleet state: {len(node_response['fleet_state'])}")
                             except Exception as e:
-                                print (e)
+                                print(e)
                 except Exception as e:
                     raise e
                 if not staking_provider:
-                    self.emitter.echo(f"\t\t staking provider: NOT BOUND TO STAKING PROVIDER")
-
+                    self.emitter.echo(
+                        f"\t\t staking provider: NOT BOUND TO STAKING PROVIDER")
 
     def format_ssh_cmd(self, host_data):
 
@@ -802,7 +819,7 @@ class BaseCloudNodeConfigurator:
             self.config['keystorepassword'] = self.config.get(
                 'keyringpassword')
         if not self.config.get('keystoremnemonic'):
-            self.new_mnemonic()       
+            self.new_mnemonic()
         self._write_config()
 
     def migrate(self, current=5, target=6):
@@ -827,7 +844,8 @@ class BaseCloudNodeConfigurator:
 
     def get_local_blockchain_provider(self):
         if not self.config.get('local_blockchain_provider'):
-            blockchain_provider = self.emitter.prompt("Please enter a blockchain provider for this local wallet to access the blockchain.")
+            blockchain_provider = self.emitter.prompt(
+                "Please enter a blockchain provider for this local wallet to access the blockchain.")
             self.config['local_blockchain_provider'] = blockchain_provider
             self._write_config()
 
@@ -838,43 +856,47 @@ class BaseCloudNodeConfigurator:
         try:
             import web3
         except ImportError:
-            self.emitter.echo("web3 must be installed to use this functionality ('pip install web3')")
+            self.emitter.echo(
+                "web3 must be installed to use this functionality ('pip install web3')")
 
         if not self.has_wallet:
-            account = web3.Account.create() # uses index 0 by default which will not be used by any subsequent node
+            # uses index 0 by default which will not be used by any subsequent node
+            account = web3.Account.create()
             keystore = web3.Account.encrypt(account.privateKey, password)
-            keystore_b64 = b64encode(json.dumps(keystore).encode()).decode('utf-8')
+            keystore_b64 = b64encode(json.dumps(
+                keystore).encode()).decode('utf-8')
             self.config['local_wallet_keystore'] = keystore_b64
             self._write_config()
 
-        account_keystore = b64decode(self.config['local_wallet_keystore']).decode()
+        account_keystore = b64decode(
+            self.config['local_wallet_keystore']).decode()
         return web3.Account.from_key(web3.Account.decrypt(account_keystore, password))
 
     @needs_provider
-    def get_wallet_balance(self, web3, address, eth=False):        
-        balance =  web3.eth.get_balance(address)
+    def get_wallet_balance(self, web3, address, eth=False):
+        balance = web3.eth.get_balance(address)
         if eth:
             return web3.fromWei(balance, 'ether')
         return balance
-    
+
     @needs_registry
     @needs_provider
-    def get_staking_provider(self, web3, contracts, address):        
-        contract_address, abi =  contracts['SimplePREApplication']
+    def get_staking_provider(self, web3, contracts, address):
+        contract_address, abi = contracts['SimplePREApplication']
         contract = web3.eth.contract(abi=abi, address=contract_address)
         return contract.functions.stakingProviderFromOperator(address).call()
 
     @needs_registry
     @needs_provider
-    def check_is_confirmed(self, web3, contracts, address):        
-        contract_address, abi =  contracts['SimplePREApplication']
+    def check_is_confirmed(self, web3, contracts, address):
+        contract_address, abi = contracts['SimplePREApplication']
         contract = web3.eth.contract(abi=abi, address=contract_address)
         return contract.functions.isOperatorConfirmed(address).call()
 
     @needs_registry
     @needs_provider
-    def get_stake_amount(self, web3, contracts, address):        
-        contract_address, abi =  contracts['SimplePREApplication']
+    def get_stake_amount(self, web3, contracts, address):
+        contract_address, abi = contracts['SimplePREApplication']
         contract = web3.eth.contract(abi=abi, address=contract_address)
         balance = contract.functions.authorizedStake(address).call()
         return int(web3.fromWei(balance, 'ether'))
@@ -888,18 +910,22 @@ class BaseCloudNodeConfigurator:
         for name, host in hosts:
             next_tx = False
             if not host.get('operator address'):
-                raise AttributeError(f"missing operator address for node: {host['host_nickname']}.  Deploy ursula first to create an operator address.")
+                raise AttributeError(
+                    f"missing operator address for node: {host['host_nickname']}.  Deploy ursula first to create an operator address.")
 
             host_op_address = host.get('operator address')
-            balance =  web3.eth.get_balance(host_op_address)
-            existing_balance = self.get_wallet_balance(host_op_address, eth=True)
-            self.emitter.echo(f"existing balance for node: {name}: {existing_balance}")
+            balance = web3.eth.get_balance(host_op_address)
+            existing_balance = self.get_wallet_balance(
+                host_op_address, eth=True)
+            self.emitter.echo(
+                f"existing balance for node: {name}: {existing_balance}")
             if existing_balance >= amount:
-                self.emitter.echo(f"host {name} already has {existing_balance} ETH.  funded.")
+                self.emitter.echo(
+                    f"host {name} already has {existing_balance} ETH.  funded.")
             else:
                 tx_hash = self.send_eth(wallet, host_op_address, amount)
                 while next_tx is False:
-                
+
                     try:
                         tx_state = web3.eth.get_transaction(tx_hash)
                         if self.get_wallet_balance(host_op_address, eth=True) > 0:
@@ -907,23 +933,25 @@ class BaseCloudNodeConfigurator:
                         else:
                             time.sleep(1)
                     except TransactionNotFound:
-                        self.emitter.echo('waiting for transaction confirmation...')
+                        self.emitter.echo(
+                            'waiting for transaction confirmation...')
                         time.sleep(1)
 
-                self.emitter.echo(f"Broadcast transaction {tx_hash} for node: {host['host_nickname']}")
+                self.emitter.echo(
+                    f"Broadcast transaction {tx_hash} for node: {host['host_nickname']}")
 
     @needs_provider
     def send_eth(self, web3, wallet, destination_address, amount_eth):
 
         transaction = {
-                    'chainId': self.chain_id,
-                    "nonce": web3.eth.getTransactionCount(wallet.address, 'pending'),
-                    "from": wallet.address,
-                    "to": destination_address,
-                    "value": web3.toWei(amount_eth, 'ether'),
-                    "gas": 21000,
-                    "gasPrice": web3.eth.gasPrice * 2
-                }
+            'chainId': self.chain_id,
+            "nonce": web3.eth.getTransactionCount(wallet.address, 'pending'),
+            "from": wallet.address,
+            "to": destination_address,
+            "value": web3.toWei(amount_eth, 'ether'),
+            "gas": 21000,
+            "gasPrice": web3.eth.gasPrice * 2
+        }
         signed_tx = wallet.sign_transaction(transaction)
         return web3.eth.send_raw_transaction(signed_tx.rawTransaction).hex()
 
@@ -943,7 +971,8 @@ class BaseCloudNodeConfigurator:
                 ethpw = self.config['ethpassword']
                 with open(keystorepath) as keyfile:
                     encrypted_key = keyfile.read()
-                    private_key = web3.eth.account.decrypt(encrypted_key, ethpw)
+                    private_key = web3.eth.account.decrypt(
+                        encrypted_key, ethpw)
                     wallet = web3.eth.account.from_key(private_key)
                     balance = web3.eth.get_balance(wallet.address)
                     if not balance:
@@ -965,9 +994,11 @@ class BaseCloudNodeConfigurator:
                             continue
                         else:
                             raise AttributeError(msg)
-                    self.emitter.echo(f"Attempting to send {web3.fromWei(amount_to_send, 'ether')} ETH from {hostname} to {to} in 3 seconds.")
+                    self.emitter.echo(
+                        f"Attempting to send {web3.fromWei(amount_to_send, 'ether')} ETH from {hostname} to {to} in 3 seconds.")
                     time.sleep(3)
-                    result = self.send_eth(wallet, to, web3.fromWei(amount_to_send, 'ether'))
+                    result = self.send_eth(
+                        wallet, to, web3.fromWei(amount_to_send, 'ether'))
                     self.emitter.echo(f'Broadcast transaction: {result}')
 
 
@@ -977,7 +1008,7 @@ class DigitalOceanConfigurator(BaseCloudNodeConfigurator):
     provider_name = 'digitalocean'
 
     def get_region(self):
-        
+
         regions = [
             'NYC1',
             'NYC3',
@@ -991,18 +1022,18 @@ class DigitalOceanConfigurator(BaseCloudNodeConfigurator):
         ]
 
         if region := self.kwargs.get('region') or os.environ.get('DIGITALOCEAN_REGION') or self.config.get(
-            'digital-ocean-region'):
+                'digital-ocean-region'):
             self.emitter.echo(f'Using Digital Ocean region: {region}')
             if not region in regions:
-                raise AttributeError(f"{region} is not a valid DigitalOcean region. Find available regions here: https://www.digitalocean.com/docs/platform/availability-matrix/")
+                raise AttributeError(
+                    f"{region} is not a valid DigitalOcean region. Find available regions here: https://www.digitalocean.com/docs/platform/availability-matrix/")
         else:
             region = random.choice(regions)
             self.emitter.echo(
                 f'Randomly choosing DigitalOcean region: {region}, to change regions call this command with --region specified or `export DIGITALOCEAN_REGION: https://www.digitalocean.com/docs/platform/availability-matrix/\n', color='yellow')
 
         return region
-        
-        
+
     @property
     def instance_size(self):
         return self.kwargs.get('instance_type') or "s-1vcpu-2gb"
@@ -1159,7 +1190,8 @@ class AWSNodeConfigurator(BaseCloudNodeConfigurator):
         'eu-central-1': 'ami-0c960b947cbb2dd16',  # Frankfurt
         'ap-northeast-1': 'ami-09b86f9709b3c33d4',  # Tokyo
         'ap-southeast-1': 'ami-093da183b859d5a4b',  # Singapore
-        'sa-east-1': 'ami-090006f29ecb2d79a'
+        'sa-east-1': 'ami-090006f29ecb2d79a',
+        'eu-west-3': 'ami-0c3be2097e1270c89'  # Paris
     }
 
     preferred_platform = 'ubuntu-focal'  # unused
@@ -1355,17 +1387,23 @@ class AWSNodeConfigurator(BaseCloudNodeConfigurator):
                 GroupName=f'Ursula-{self.namespace_network}', Description='ssh and Nucypher ports', VpcId=self.config['Vpc'])
             self.config['SecurityGroup'] = sg_id = securitygroupdata['GroupId']
             self._write_config()
-            securitygroup = self.ec2Resource.SecurityGroup(sg_id)
-            securitygroup.create_tags(Tags=self.aws_tags)
 
+        securitygroup = self.ec2Resource.SecurityGroup(
+            self.config['SecurityGroup'])
+        securitygroup.create_tags(Tags=self.aws_tags)
+
+        securitygroup.authorize_ingress(
+            CidrIp='0.0.0.0/0', IpProtocol='tcp', FromPort=22, ToPort=22)
+        # TODO: is it always 9151?  Does that matter? Should this be configurable?
+        securitygroup.authorize_ingress(
+            CidrIp='0.0.0.0/0', IpProtocol='tcp', FromPort=self.URSULA_PORT, ToPort=self.URSULA_PORT)
+        for port in self.PROMETHEUS_PORTS:
             securitygroup.authorize_ingress(
-                CidrIp='0.0.0.0/0', IpProtocol='tcp', FromPort=22, ToPort=22)
-            # TODO: is it always 9151?  Does that matter? Should this be configurable?
+                CidrIp='0.0.0.0/0', IpProtocol='tcp', FromPort=port, ToPort=port)
+
+        for (source, dest) in self.OTHER_INGRESS_PORTS:
             securitygroup.authorize_ingress(
-                CidrIp='0.0.0.0/0', IpProtocol='tcp', FromPort=self.URSULA_PORT, ToPort=self.URSULA_PORT)
-            for port in self.PROMETHEUS_PORTS:
-                securitygroup.authorize_ingress(
-                    CidrIp='0.0.0.0/0', IpProtocol='tcp', FromPort=port, ToPort=port)
+                CidrIp='0.0.0.0/0', IpProtocol='tcp', FromPort=source, ToPort=dest)
 
     def _do_setup_for_instance_creation(self):
         if not getattr(self, 'profile', None):
@@ -1458,10 +1496,12 @@ class AWSNodeConfigurator(BaseCloudNodeConfigurator):
     def create_new_node(self, node_name):
 
         if not self.EC2_AMI_LOOKUP.get(self.AWS_REGION) or os.environ.get('NUCYPHER_OPS_AWS_AMI'):
-            raise AttributeError("Sorry nucypher-ops does not automatically support this region.  Please specify an ami for your instances by setting envar `export NUCYPHER_OPS_AWS_AMI=ami-xxxxxxxxxxxxxx`")
+            raise AttributeError(
+                "Sorry nucypher-ops does not automatically support this region.  Please specify an ami for your instances by setting envar `export NUCYPHER_OPS_AWS_AMI=ami-xxxxxxxxxxxxxx`")
 
         params = dict(
-            ImageId=os.environ.get('NUCYPHER_OPS_AWS_AMI') or self.EC2_AMI_LOOKUP.get(self.AWS_REGION),
+            ImageId=os.environ.get(
+                'NUCYPHER_OPS_AWS_AMI') or self.EC2_AMI_LOOKUP.get(self.AWS_REGION),
             InstanceType=self.EC2_INSTANCE_SIZE,
             KeyName=self.keypair,
             NetworkInterfaces=[
@@ -1547,30 +1587,11 @@ class GenericConfigurator(BaseCloudNodeConfigurator):
         return self.config
 
 
-class PorterDeployer(BaseCloudNodeConfigurator):
+class GenericDeployer(BaseCloudNodeConfigurator):
 
-    application = 'porter'
-    required_fields = [
-        'eth_provider',
-        'docker_image',
-    ]
-    host_level_override_prompts = {
-        'eth_provider': {"prompt": "--eth-provider: please provide the url of a hosted ethereum node (infura/geth) which this porter node can access", "choices": None},
-    }
+    def deploy(self, node_names):
 
-    output_capture = {}
-
-    @property
-    def _inventory_template(self):
-        template_path = Path(TEMPLATES).joinpath('porter_inventory.mako')
-        return Template(filename=str(template_path))
-
-    @property
-    def inventory_path(self):
-        return str(Path(DEFAULT_CONFIG_ROOT).joinpath(NODE_CONFIG_STORAGE_KEY, f'{self.namespace_network}.porter_ansible_inventory.yml'))
-
-    def deploy_porter_on_existing_nodes(self, node_names):
-        playbook = Path(PLAYBOOKS).joinpath('setup_porter.yml')
+        playbook = Path(PLAYBOOKS).joinpath(self.playbook_name)
         self.configure_host_level_overrides(node_names)
 
         self.update_generate_inventory(node_names)
@@ -1622,7 +1643,7 @@ class PorterDeployer(BaseCloudNodeConfigurator):
 
                 ],
             'cliargs': [
-            ]
+                    ]
         }
         for datatype in ['envvars', 'cliargs']:
 
@@ -1650,6 +1671,9 @@ class PorterDeployer(BaseCloudNodeConfigurator):
                     if not k in nodes[key][data_key]:
                         nodes[key][data_key][k] = v
 
+        for key, node in nodes.items():
+            print(key, node)
+
         inventory_content = self._inventory_template.render(
             deployer=self,
             nodes=nodes.values(),
@@ -1666,14 +1690,61 @@ class PorterDeployer(BaseCloudNodeConfigurator):
         return self.inventory_path
 
 
+class PorterDeployer(GenericDeployer):
+
+    playbook_name = 'setup_porter.yml'
+    application = 'porter'
+    required_fields = [
+        'eth_provider',
+        'docker_image',
+    ]
+    host_level_override_prompts = {
+        'eth_provider': {"prompt": "--eth-provider: please provide the url of a hosted ethereum node (infura/geth) which this porter node can access", "choices": None},
+    }
+
+    output_capture = {}
+
+    @property
+    def _inventory_template(self):
+        template_path = Path(TEMPLATES).joinpath('porter_inventory.mako')
+        return Template(filename=str(template_path))
+
+    @property
+    def inventory_path(self):
+        return str(Path(DEFAULT_CONFIG_ROOT).joinpath(NODE_CONFIG_STORAGE_KEY, f'{self.namespace_network}.porter_ansible_inventory.yml'))
+
+
+class EthDeployer(GenericDeployer):
+
+    playbook_name = 'setup_standalone_geth_node.yml'
+    application = 'ethereum'
+    required_fields = [
+        'docker_image',
+    ]
+    host_level_override_prompts = {
+        # 'eth_provider': {"prompt": "--eth-provider: please provide the url of a hosted ethereum node (infura/geth) which this porter node can access", "choices": None},
+    }
+
+    output_capture = {}
+
+    @property
+    def _inventory_template(self):
+        template_path = Path(TEMPLATES).joinpath('ethereum_inventory.mako')
+        return Template(filename=str(template_path))
+
+    @property
+    def inventory_path(self):
+        return str(Path(DEFAULT_CONFIG_ROOT).joinpath(NODE_CONFIG_STORAGE_KEY, f'{self.namespace_network}.ethereum_ansible_inventory.yml'))
+
+
 class CloudDeployers:
 
     aws = AWSNodeConfigurator
     digitalocean = DigitalOceanConfigurator
     generic = GenericConfigurator
     porter = PorterDeployer
+    ethereum = EthDeployer
 
     @staticmethod
     def get_deployer(name):
         return getattr(CloudDeployers, name)
-

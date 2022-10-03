@@ -35,4 +35,4 @@ def deploy(image, namespace, network, include_hosts, envvars, cliargs):
     for name, hostdata in [(n, d) for n, d in deployer.config['instances'].items() if n in hostnames]:
         emitter.echo(f'\t{name}: {hostdata["publicaddress"]}', color="yellow")
     os.environ['ANSIBLE_HOST_KEY_CHECKING'] = 'False'
-    deployer.deploy_porter_on_existing_nodes(hostnames)
+    deployer.deploy(hostnames)

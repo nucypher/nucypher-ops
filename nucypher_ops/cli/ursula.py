@@ -154,3 +154,33 @@ def defund(amount, to_address, namespace, network, include_hosts):
         hostnames = include_hosts
 
     deployer.defund_nodes(hostnames, to=to_address, amount=amount)
+
+
+@cli.command('show-backupdir')
+@click.option('--verbose', '-v', help="include node nick names", is_flag=True)
+@click.option('--namespace', help="Namespace for these operations.  Used to address hosts and data locally and name hosts on cloud platforms.", type=click.STRING, default=DEFAULT_NAMESPACE)
+@click.option('--network', help="The Nucypher network name these hosts will run on.", type=click.STRING, default=DEFAULT_NETWORK)
+def backupdir(verbose, namespace, network):
+    deployer = CloudDeployers.get_deployer('generic')(emitter, namespace=namespace, network=network)
+    hostnames = deployer.config['instances'].keys()
+    for hostname in hostnames:   
+        prefix = f'{hostname}:' if verbose else ''
+        emitter.echo(f'{prefix} {deployer.get_backup_path_by_nickname(hostname)}')
+
+
+@cli.command('restore')
+@click.option('--namespace', help="Namespace for these operations.  Used to address hosts and data locally and name hosts on cloud platforms.", type=click.STRING, default=DEFAULT_NAMESPACE)
+@click.option('--network', help="The Nucypher network name these hosts will run on.", type=click.STRING, default=DEFAULT_NETWORK)
+@click.option('--target-host', 'target_host', help="The nickname of the host where we are putting the restored state. (try `nucypher-ops nodes list` )", multiple=False, type=click.STRING)
+@click.option('--source-path', 'source_path', help="The absolute path on disk to the backup data you are restoring", type=click.STRING, required=False)
+@click.option('--source-nickname', 'source_nickname', help="The nickname of the node whose data you are moving to the new machine", type=click.STRING, required=False)
+def restore(namespace, network, target_host, source_path, source_nickname):
+    """Restores a backup of a worker to an existing host"""
+
+
+    if not source_path and not source_nickname:
+        emitter.echo("You must either specify the path to a backup on disk (ie. `/Users/Alice/Library/Application Support/nucypher-ops/configs/), or the name of an existing ursula config (ie. `mainnet-nucypher-1`")
+
+    deployer = CloudDeployers.get_deployer('generic')(emitter, namespace=namespace, network=network)
+
+    deployer.restore_from_backup(target_host, source_path)

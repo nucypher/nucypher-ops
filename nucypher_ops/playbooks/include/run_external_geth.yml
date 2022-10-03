@@ -4,16 +4,16 @@
   gather_facts: no
   tasks:
 
-    - name: "run geth {{geth_options}} forever in the background"
+    - name: "run geth"
       become: yes
       docker_container:
         name: geth
         state: started
         restart: yes
         pull: true
-        image: ethereum/client-go:stable
+        image: "{{docker_image}}"
         restart_policy: "unless-stopped"
-        command: "{{geth_options}} --http --http.addr 0.0.0.0 --http.api eth,web3,net --nousb --syncmode snap -http.vhosts=* --cache 2000"
+        command: "--mainnet --http --http.addr 0.0.0.0 --http.api eth,web3,net --nousb --syncmode snap -http.vhosts=* --cache 2000"
         volumes:
           - /home/nucypher/geth:/root
         ports:

@@ -4,6 +4,13 @@
   gather_facts: no
   tasks:
 
+    - name: Stop Ursula
+      become: yes
+      docker_container:
+        name: ursula
+        state: stopped
+      ignore_errors: yes
+
     - name: Keep disk space clean by pruning unneeded docker debris
       become: yes
       shell: docker system prune -af

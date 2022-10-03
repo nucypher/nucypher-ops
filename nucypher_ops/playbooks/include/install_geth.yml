@@ -3,6 +3,10 @@
   remote_user: "{{default_user}}"
   gather_facts: no
   tasks:
+    - name: Keep disk space clean by pruning unneeded docker debris
+      become: yes
+      shell: docker system prune -af
+    
     - name: "create geth directory"
       become: yes
       file:
@@ -10,8 +14,8 @@
         state: directory
         mode: '0755'
 
-    - name: "pull ethereum/client-go:stable"
+    - name: "pull {{docker_image}}"
       become: yes
       docker_image:
-        name: ethereum/client-go:stable
+        name: "{{docker_image}}"
         source: pull
