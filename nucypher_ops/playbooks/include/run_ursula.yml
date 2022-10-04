@@ -52,6 +52,7 @@
         --network {{network_name}} \
         --payment-network {{payment_network}} \
         --payment-provider {{payment_provider}} \
+        --rest-host {{ip_response.content}} \
         {{nucypher_ursula_init_options | default('')}} {{signer_options}}"
       environment:
         NUCYPHER_KEYSTORE_PASSWORD: "{{runtime_envvars['NUCYPHER_KEYSTORE_PASSWORD']}}"
