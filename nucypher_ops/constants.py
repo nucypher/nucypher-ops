@@ -30,7 +30,8 @@ NETWORKS = {
     'mainnet': {'policy': MAINNET, 'payment': POLYGON_MAINNET},
     'ibex': {'policy': RINKEBY, 'payment': POLYGON_MUMBAI},
     'lynx': {'policy': GOERLI, 'payment': POLYGON_MUMBAI},
-    'oryx': {'policy': ROPSTEN, 'payment': POLYGON_MUMBAI}
+    'oryx': {'policy': ROPSTEN, 'payment': POLYGON_MUMBAI},
+    'tapir': {'policy': GOERLI, 'payment': POLYGON_MUMBAI},
 }
 
 PAYMENT_NETWORKS = ('polygon', 'mumbai')
