@@ -12,7 +12,7 @@
         restart: yes
         image: "{{ docker_image }}"
         restart_policy: "unless-stopped"
-        command: 'nucypher porter run --eth-provider {{ eth_provider }} {{CLI_RUNTIME_OPTIONS}}'
+        command: 'nucypher-porter porter run --eth-provider {{ eth_provider }} {{CLI_RUNTIME_OPTIONS}}'
         container_default_behavior: "compatibility"
         volumes:
           - ~/nucypher/nucypher:/root/.local/share/nucypher
