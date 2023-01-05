@@ -47,7 +47,8 @@ setup(
         'mako',
         'requests',
         'maya',
-        'appdirs'
+        'appdirs',
+        'tabulate',
     ],
     entry_points='''
         [console_scripts]
