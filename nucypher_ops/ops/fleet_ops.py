@@ -1,20 +1,3 @@
-"""
- This file is part of nucypher.
-
- nucypher is free software: you can redistribute it and/or modify
- it under the terms of the GNU Affero General Public License as published by
- the Free Software Foundation, either version 3 of the License, or
- (at your option) any later version.
-
- nucypher is distributed in the hope that it will be useful,
- but WITHOUT ANY WARRANTY; without even the implied warranty of
- MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- GNU Affero General Public License for more details.
-
- You should have received a copy of the GNU Affero General Public License
- along with nucypher.  If not, see <https://www.gnu.org/licenses/>.
-"""
-
 import copy
 import json
 import random
@@ -40,7 +23,7 @@ from nucypher_ops.ops.ansible_utils import AnsiblePlayBookResultsCollector
 from nucypher_ops.constants import (
     CHAIN_NAMES, NETWORKS, DEFAULT_CONFIG_ROOT, PLAYBOOKS, TEMPLATES,
     NUCYPHER_ENVVAR_KEYSTORE_PASSWORD,
-    NUCYPHER_ENVVAR_OPERATOR_ETH_PASSWORD, PAYMENT_NETWORKS, PAYMENT_NETWORK_CHOICES
+    NUCYPHER_ENVVAR_OPERATOR_ETHEREUM_PASSWORD, PAYMENT_NETWORKS, PAYMENT_NETWORK_CHOICES
 )
 
 from nucypher_ops.ops import keygen
@@ -219,6 +202,10 @@ class BaseCloudNodeConfigurator:
 
         self._write_config()
 
+    @property
+    def user(self) -> str:
+        return 'nucypher'
+
     def _write_config(self):
 
         config_dir = self.config_path.parent
@@ -241,7 +228,7 @@ class BaseCloudNodeConfigurator:
 
     @property
     def backup_directory(self):
-        return f'{self.config_dir}/remote_worker_backups/'
+        return f'{self.config_dir}/remote_operator_backups/'
 
     @property
     def has_wallet(self):
@@ -273,6 +260,23 @@ class BaseCloudNodeConfigurator:
     def inventory_path(self):
         return str(Path(DEFAULT_CONFIG_ROOT).joinpath(NODE_CONFIG_STORAGE_KEY, f'{self.namespace_network}.ansible_inventory.yml'))
 
+    def default_config(self):
+        defaults = {
+            'envvars':
+                [
+                    (NUCYPHER_ENVVAR_KEYSTORE_PASSWORD,
+                     self.config['keystorepassword']),
+                    (NUCYPHER_ENVVAR_OPERATOR_ETHEREUM_PASSWORD,
+                     self.config['ethpassword']),
+
+                    ("OPERATOR_ETHEREUM_PASSWORD",  # TODO: Remove this (it's for backwards compatibility)
+                     self.config['ethpassword']),
+
+                ],
+            'cliargs': []
+        }
+        return defaults
+
     def update_generate_inventory(self, node_names, generate_keymaterial=False, **kwargs):
 
         # filter out the nodes we will not be dealing with
@@ -282,18 +286,7 @@ class BaseCloudNodeConfigurator:
             raise KeyError(
                 f"No hosts matched the supplied names: {node_names}.  Try `nucypher cloudworkers list-hosts` or create new hosts with `nucypher-ops nodes create`")
 
-        defaults = {
-            'envvars':
-                [
-                    (NUCYPHER_ENVVAR_KEYSTORE_PASSWORD,
-                     self.config['keystorepassword']),
-                    (NUCYPHER_ENVVAR_OPERATOR_ETH_PASSWORD,
-                     self.config['ethpassword']),
-                ],
-            'cliargs': [
-                    ]
-        }
-
+        defaults = self.default_config()
         if generate_keymaterial or kwargs.get('migrate_nucypher') or kwargs.get('init'):
             wallet = keygen.restore(self.config['keystoremnemonic'])
             keypairs = list(keygen.derive(
@@ -319,7 +312,7 @@ class BaseCloudNodeConfigurator:
 
             # we don't want to save the default_envvars to the config file
             # but we do want them to be specified to the inventory template
-            # but overridden on a per node basis if previously specified
+            # but overridden on a per-node basis if previously specified
             for key, node in nodes.items():
                 for k, v in defaults[datatype]:
                     if not k in nodes[key][data_key]:
@@ -811,7 +804,7 @@ class BaseCloudNodeConfigurator:
             if not self.config['instances'][instance].get('index'):
                 self.config['instances'][instance]['index'] = index
             if instance.runtime_envvars.get('NUCYPHER_WORKER_ETH_PASSWORD'):
-                instance.runtime_envvars['NUCYPHER_OPERATOR_ETH_PASSWORD'] = instance.runtime_envvars.get(
+                instance.runtime_envvars['NUCYPHER_OPERATOR_ETHEREUM_PASSWORD'] = instance.runtime_envvars.get(
                     'NUCYPHER_WORKER_ETH_PASSWORD')
                 del instance.runtime_envvars['NUCYPHER_WORKER_ETH_PASSWORD']
 
@@ -828,7 +821,7 @@ class BaseCloudNodeConfigurator:
             return getattr(self, migration)()
 
         self.emitter.echo(
-            f" *** Error:  Could'nt find migration from {current} to {target} ***", color="red")
+            f" *** Error:  Couldn't find migration from {current} to {target} ***", color="red")
 
     def remove_resources(self, hostnames):
         for host in hostnames:
@@ -1171,13 +1164,6 @@ class AWSNodeConfigurator(BaseCloudNodeConfigurator):
     URSULA_PORT = 9151
     PROMETHEUS_PORTS = [9101]
     PROMETHEUS_PORT = PROMETHEUS_PORTS[0]
-
-    """
-    gets a node up and running.
-    """
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
 
     provider_name = 'aws'
 
@@ -1637,14 +1623,7 @@ class GenericDeployer(BaseCloudNodeConfigurator):
             raise KeyError(
                 f"No hosts matched the supplied names: {node_names}.  Try `nucypher-ops nodes list` or create new hosts with `nucypher-ops nodes create`")
 
-        defaults = {
-            'envvars':
-                [
-
-                ],
-            'cliargs': [
-                    ]
-        }
+        defaults = self.default_config()
         for datatype in ['envvars', 'cliargs']:
 
             data_key = f'runtime_{datatype}'
@@ -1705,6 +1684,17 @@ class PorterDeployer(GenericDeployer):
     output_capture = {}
 
     @property
+    def user(self) -> str:
+        return 'porter'
+
+    def default_config(self):
+        defaults = {
+            'envvars': [],
+            'cliargs': []
+        }
+        return defaults
+
+    @property
     def _inventory_template(self):
         template_path = Path(TEMPLATES).joinpath('porter_inventory.mako')
         return Template(filename=str(template_path))
@@ -1712,6 +1702,69 @@ class PorterDeployer(GenericDeployer):
     @property
     def inventory_path(self):
         return str(Path(DEFAULT_CONFIG_ROOT).joinpath(NODE_CONFIG_STORAGE_KEY, f'{self.namespace_network}.porter_ansible_inventory.yml'))
+
+
+class tBTCv2Deployer(GenericDeployer):
+
+    application = 'tbtcv2'
+    required_fields = [
+        'eth_provider',
+        'docker_image',
+    ]
+    host_level_override_prompts = {
+        'eth_provider': {"prompt": "--eth-provider: please provide the websocket url of an ethereum node", "choices": None},
+    }
+
+    output_capture = {}
+
+    @property
+    def user(self) -> str:
+        return 'tbtcv2'
+
+    def default_config(self):
+        defaults = {
+            'envvars':
+                [
+                    ("OPERATOR_ETHEREUM_PASSWORD",
+                     self.config['ethpassword']),
+                ],
+            'cliargs': []
+        }
+        return defaults
+
+    @property
+    def _inventory_template(self):
+        template_path = Path(TEMPLATES).joinpath('tbtcv2_inventory.mako')
+        return Template(filename=str(template_path))
+
+    @property
+    def inventory_path(self):
+        return str(Path(DEFAULT_CONFIG_ROOT).joinpath(NODE_CONFIG_STORAGE_KEY, f'{self.namespace_network}.tbtcv2_ansible_inventory.yml'))
+
+    @property
+    def instance_size(self):
+        return self.kwargs.get('instance_type') or "s-2vcpu-2gb"
+
+    @property
+    def backup_directory(self):
+        return f'{self.config_dir}/remote_operator_backups/'
+
+    def stage_nodes(self, *args, **kwargs):
+        self.playbook_name = "stage_tbtcv2.yml"
+        return super().deploy(*args, **kwargs)
+
+    def run_nodes(self, *args, **kwargs):
+        self.playbook_name = "run_tbtcv2.yml"
+        return super().deploy(*args, **kwargs)
+
+    def stop_nodes(self, *args, **kwargs):
+        self.playbook_name = "include/stop_tbtcv2_nodes.yml"
+        return super().deploy(*args, **kwargs)
+
+    def get_operator_address(self, *args, **kwargs):
+        self.playbook_name = "include/get_operator_address.yml"
+        return super().deploy(*args, **kwargs)
+
 
 
 class EthDeployer(GenericDeployer):
@@ -1736,6 +1789,10 @@ class EthDeployer(GenericDeployer):
     def inventory_path(self):
         return str(Path(DEFAULT_CONFIG_ROOT).joinpath(NODE_CONFIG_STORAGE_KEY, f'{self.namespace_network}.ethereum_ansible_inventory.yml'))
 
+    @property
+    def user(self) -> str:
+        return 'ethereum'
+
 
 class CloudDeployers:
 
@@ -1744,6 +1801,7 @@ class CloudDeployers:
     generic = GenericConfigurator
     porter = PorterDeployer
     ethereum = EthDeployer
+    tbtcv2 = tBTCv2Deployer
 
     @staticmethod
     def get_deployer(name):

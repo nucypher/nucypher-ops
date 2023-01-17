@@ -20,36 +20,36 @@
         paths: /home/nucypher/nucypher/ursula.db
       register: database_files
 
-    - name: "Backup Worker Nucypher Keystore locally to: {{deployer_config_path}}/remote_worker_backups/"
+    - name: "Backup operator ethereum keys locally to: {{deployer_config_path}}/remote_operator_backups/"
       become: yes
       become_user: nucypher
       fetch:
         src: "{{item.path}}"
-        dest: "{{deployer_config_path}}/remote_worker_backups/"
+        dest: "{{deployer_config_path}}/remote_operator_backups/"
       with_items: "{{keystore_files.files}}"
 
-    - name: "Backup remote worker config files: {{deployer_config_path}}/remote_worker_backups/"
+    - name: "Backup remote worker config files: {{deployer_config_path}}/remote_operator_backups/"
       become: yes
       become_user: nucypher
       fetch:
         src: "{{item}}"
-        dest: "{{deployer_config_path}}/remote_worker_backups/"
+        dest: "{{deployer_config_path}}/remote_operator_backups/"
       with_items:
         - "/home/nucypher/nucypher/ursula.json"
         - "{{geth_dir}}account.txt"
 
-    - name: "Backup NuCypher Keystores locally to: {{deployer_config_path}}/remote_worker_backups/"
+    - name: "Backup NuCypher Keystores locally to: {{deployer_config_path}}/remote_operator_backups/"
       become: yes
       # become_user: nucypher
       fetch:
         src: "{{item.path}}"
-        dest: "{{deployer_config_path}}/remote_worker_backups/"
+        dest: "{{deployer_config_path}}/remote_operator_backups/"
       with_items: "{{keystore.files}}"
 
-    - name: "Backup ursula.db to: {{deployer_config_path}}/remote_worker_backups/"
+    - name: "Backup ursula.db to: {{deployer_config_path}}/remote_operator_backups/"
       become: yes
       # become_user: nucypher
       fetch:
         src: "{{item.path}}"
-        dest: "{{deployer_config_path}}/remote_worker_backups/"
+        dest: "{{deployer_config_path}}/remote_operator_backups/"
       with_items: "{{database_files.files}}"

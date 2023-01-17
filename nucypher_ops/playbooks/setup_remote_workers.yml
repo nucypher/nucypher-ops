@@ -5,7 +5,7 @@
 - import_playbook: include/setup_user.yml
 - import_playbook: include/setup_docker.yml
 - import_playbook: include/install_geth.yml
-- import_playbook: include/init_worker.yml
+- import_playbook: include/init_operator.yml
 - import_playbook: include/init_ursula.yml
 - import_playbook: include/run_ursula.yml
 - import_playbook: include/check_running_ursula.yml

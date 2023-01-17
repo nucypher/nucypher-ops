@@ -6,6 +6,7 @@ all:
           children:
             nodes:
               vars:
+                node_user: ${deployer.user}
                 network_name: "${deployer.network}"
                 geth_options: "--${deployer.chain_name}"
                 geth_dir: '/home/nucypher/geth/.ethereum/${deployer.chain_name}/'

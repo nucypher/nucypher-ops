@@ -57,12 +57,12 @@
       environment:
         NUCYPHER_KEYSTORE_PASSWORD: "{{runtime_envvars['NUCYPHER_KEYSTORE_PASSWORD']}}"
 
-    - name: "Backup Worker Nucypher Keystore locally to: {{deployer_config_path}}/remote_worker_backups/"
+    - name: "Backup Worker Nucypher Keystore locally to: {{deployer_config_path}}/remote_operator_backups/"
       become: yes
       become_user: nucypher
       fetch:
         src: "{{keystore_output.files[0].path}}"
-        dest: "{{deployer_config_path}}/remote_worker_backups/"
+        dest: "{{deployer_config_path}}/remote_operator_backups/"
 
     - name: Stop Ursula
       become: yes

@@ -1,6 +1,6 @@
 - name: "Install Docker"
   hosts: "{{ play_hosts }}"
-  remote_user: "{{default_user}}"
+  remote_user: "{{ default_user }}"
   become: yes
   gather_facts: no
   tasks:
@@ -34,9 +34,14 @@
         name: docker
         state: present
 
-    - name: Add the nucypher user to the docker group
+    - name: Add default the user to the docker group
       user:
-        name: nucypher
+        name: "{{ default_user }}"
+        group: docker
+
+    - name: Add node user to the docker group
+      user:
+        name: "{{ node_user }}"
         group: docker
 
     - name: Download docker-compose
@@ -53,7 +58,7 @@
       command: mv ~/docker-compose /usr/local/bin/docker-compose
       when: docker_compose.stat.exists
 
-    - name: chown docker-compose so nucypher user can use it
+    - name: chown docker-compose so the user can use it
       file:
         path: /usr/local/bin/docker-compose
         group: docker

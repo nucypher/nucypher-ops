@@ -124,8 +124,8 @@ def list(network, namespace, all, as_json, pretty):
     human_data = []
     headers = [
         'host_nickname',
-        # 'publicaddress',
-        'rest url',
+        'publicaddress',
+        # 'rest url',
         'operator address',
         'provider',
         'docker_image',

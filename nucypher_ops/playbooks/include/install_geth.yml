@@ -1,21 +1,21 @@
-- name: "Setup Ethereum"
+- name: "Setup Geth"
   hosts: "{{ play_hosts }}"
-  remote_user: "{{default_user}}"
+  remote_user: "{{ default_user }}"
   gather_facts: no
   tasks:
     - name: Keep disk space clean by pruning unneeded docker debris
       become: yes
       shell: docker system prune -af
     
-    - name: "create geth directory"
+    - name: "create geth data directory"
       become: yes
       file:
-        path: /home/nucypher/geth/
+        path: "/home/{{ node_user }}/geth/"
         state: directory
         mode: '0755'
 
-    - name: "pull {{docker_image}}"
+    - name: "pull ethereum/client-go:latest"
       become: yes
       docker_image:
-        name: "{{docker_image}}"
+        name: "ethereum/client-go:latest"
         source: pull

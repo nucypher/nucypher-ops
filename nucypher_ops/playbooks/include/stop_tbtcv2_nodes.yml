@@ -1,0 +1,11 @@
+- name: "Stop tBTCv2 and Random Beacon Container"
+  hosts: "{{ play_hosts }}"
+  remote_user: "{{ default_user }}"
+  gather_facts: no
+  tasks:
+    - name: Stop tbtcv2 docker container
+      become: yes
+      docker_container:
+        name: tbtcv2
+        state: stopped
+      ignore_errors: yes

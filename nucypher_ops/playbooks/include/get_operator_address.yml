@@ -1,0 +1,40 @@
+- name: "Get operator ethereum account from nodes"
+  hosts: "{{ play_hosts }}"
+  remote_user: "{{ default_user }}"
+  gather_facts: yes
+  tasks:
+
+    - name: "get account address from file"
+      become: yes
+      command: 'cat {{ geth_dir }}account.txt'
+      register: active_account
+
+    - name: store operator address
+      set_fact:
+        operator_address: "{{active_account.stdout}}"
+
+    - name: "echo operator_address"
+      debug:
+          verbosity: 0
+          msg: "{{ inventory_hostname }}:{{ operator_address }}"
+
+    - name: find keystore files
+      find:
+        paths: "{{geth_dir}}keystore"
+      register: keystore_files
+
+    - name: "Recursively change ownership of geth directory"
+      become: yes
+      file:
+        path: "{{ geth_dir }}"
+        state: directory
+        recurse: yes
+        owner: "{{ node_user }}"
+
+    - name: "Backup operator ethereum keys locally to: {{deployer_config_path}}/remote_operator_backups/"
+      become: yes
+      become_user: "{{ node_user }}"
+      fetch:
+        src: "{{item.path}}"
+        dest: "{{deployer_config_path}}/remote_operator_backups/"
+      with_items: "{{keystore_files.files}}"

@@ -16,3 +16,16 @@ $ nucypher-ops ursula deploy # you will have an Ursula fully installed and ready
 ```
 
 For a more detailed guide on how to get started, follow this [tutorial](https://docs.nucypher.com/en/latest/pre_application/cloud_node_management.html) or this [community maintained guide](https://promethium.dev/t/nucypher-ops/)
+
+
+## tBTCv2 and Random Beacon Support
+
+This repo also supports the deployment of tBTCv2 and Random Beacon nodes.
+
+```
+nucypher-ops nodes list --all
+nucypher-ops nodes create --count 1 --network goerli --namespace tbtcv2 --cloudprovider digitalocean
+nucypher-ops tbtcv2 stage --namespace tbtcv2 --network test
+nucypher-ops tbtcv2 operator-addresses --namespace tbtcv2 --network test
+nucypher-ops tbtcv2 run --namespace tbtcv2 --network test
+```

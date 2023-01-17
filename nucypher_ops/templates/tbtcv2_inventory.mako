@@ -1,14 +1,17 @@
 all:
   children:
-    nucypher:
+    keep:
       children:
-        mainnet:
+        ${deployer.network}:
           children:
             nodes:
               vars:
                 node_user: ${deployer.user}
                 network_name: ${deployer.network}
                 ansible_python_interpreter: /usr/bin/python3
+                geth_dir: '/home/${deployer.user}/geth/.ethereum/${deployer.chain_name}/'
+                geth_container_geth_datadir: "/root/.ethereum/${deployer.chain_name}"
+                deployer_config_path: ${deployer.config_dir}
                 ansible_connection: ssh
               hosts:
                 %for node in nodes:
@@ -17,6 +20,9 @@ all:
                   %for attr in node['provider_deploy_attrs']:
                   ${attr['key']}: ${attr['value']}
                   %endfor
+                  % if node.get('eth_provider'):
+                  eth_provider: ${node['eth_provider']}
+                  %endif
                   %if node.get('docker_image'):
                   docker_image: ${node['docker_image']}
                   %endif
