@@ -1,0 +1,74 @@
+- name: "Ursula Ops Data"
+  hosts: "{{ play_hosts }}"
+  remote_user: "{{default_user}}"
+  gather_facts: no
+  tasks:
+
+    - name: "Get Hostname"
+      shell:
+        cmd: hostname
+      register: ursula_hostname
+
+    - name: "Get Ursula Container Name"
+      become: yes
+      shell:
+        cmd: docker ps --no-trunc | grep ursula | cut -f 1 -d " "
+      register: ursula_container_name
+
+    - name: "Get Docker Image"
+      become: yes
+      shell:
+        cmd: docker inspect {{ursula_container_name.stdout}} --format \{\{.Config.Image\}\}
+      register: running_docker_image
+
+    - name: "Keystore Password"
+      become: yes
+      shell:
+        cmd: docker inspect {{ursula_container_name.stdout}} --format \{\{range\ .Config.Env\}\}\{\{println\ .\}\}\{\{end\}\} | grep "NUCYPHER_KEYSTORE_PASSWORD" | cut -d "=" -f 2-
+      register: keystore_password
+
+    - name: "Operator Password"
+      become: yes
+      shell:
+        cmd: docker inspect {{ursula_container_name.stdout}} --format \{\{range\ .Config.Env\}\}\{\{println\ .\}\}\{\{end\}\} | grep "NUCYPHER_OPERATOR_ETH_PASSWORD" | cut -d "=" -f 2-
+      register: operator_password
+
+    - name: "Get DO Instance ID"
+      become: yes
+      shell:
+        cmd: curl -s http://169.254.169.254/metadata/v1/id
+      register: instance_id
+
+    - name: "Get DO Instance Region"
+      become: yes
+      shell:
+        cmd: curl -s http://169.254.169.254/metadata/v1/region
+      register: instance_region
+
+    - name: "Get Ursula JSON Data"
+      become: yes
+      shell: cat /home/nucypher/nucypher/ursula.json
+      register: ursula_config_result
+
+    - name: "Save Ursula config as json"
+      set_fact:
+        ursula_config: "{{ ursula_config_result.stdout | from_json }}"
+
+    - name: "Print Ursula Ops Status"
+      ignore_errors: no
+      debug:
+        msg:
+          " hostname:               {{ursula_hostname.stdout}}\n
+           instance-id:            {{instance_id.stdout}}\n
+           docker-image:           {{running_docker_image.stdout}}\n
+           domain:                 {{ursula_config.domain}}\n
+           rest-host:              {{ursula_config.rest_host}}\n
+           rest-port:              {{ursula_config.rest_port}}\n
+           keystore-password:      {{keystore_password.stdout}}\n
+           operator-address:       {{ursula_config.operator_address}}\n
+           operator-password:      {{operator_password.stdout}}\n
+           eth-provider:           {{ursula_config.eth_provider_uri}}\n
+           payment-provider:       {{ursula_config.payment_provider}}\n
+           payment-network:        {{ursula_config.payment_network}}\n
+           payment-method:         {{ursula_config.payment_method}}\n
+          "

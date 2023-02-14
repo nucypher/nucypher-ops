@@ -1,8 +1,17 @@
-from yaml import emit
-from nucypher_ops.constants import DEFAULT_NAMESPACE, DEFAULT_NETWORK
-from nucypher_ops.ops.fleet_ops import CloudDeployers
 import os
+from pathlib import Path
+
 import click
+from ansible.executor.playbook_executor import PlaybookExecutor
+from ansible.inventory.manager import InventoryManager
+from ansible.parsing.dataloader import DataLoader
+from ansible.vars.manager import VariableManager
+
+from nucypher_ops.constants import DEFAULT_NAMESPACE, DEFAULT_NETWORK
+from nucypher_ops.constants import PLAYBOOKS
+from nucypher_ops.ops.ansible_utils import AnsiblePlayBookResultsCollector
+from nucypher_ops.ops.fleet_ops import CloudDeployers
+
 emitter = click
 
 
@@ -184,3 +193,61 @@ def restore(namespace, network, target_host, source_path, source_nickname):
     deployer = CloudDeployers.get_deployer('generic')(emitter, namespace=namespace, network=network)
 
     deployer.restore_from_backup(target_host, source_path)
+
+
+@cli.command('backup')
+@click.option('--namespace', help="Namespace for these operations.  Used to address hosts and data locally and name hosts on cloud platforms.", type=click.STRING, default=DEFAULT_NAMESPACE)
+@click.option('--network', help="The Nucypher network name these hosts are running on.", type=click.STRING, default=DEFAULT_NETWORK)
+@click.option('--include-host', help="The nickname of the host to backup", multiple=False, type=click.STRING, required=False)
+def backup(namespace, network, include_host):
+    """Restores a backup of a worker to an existing host"""
+    deployer = CloudDeployers.get_deployer('generic')(emitter, namespace=namespace, network=network)
+    if include_host:
+        hostnames = [include_host]
+    else:
+        hostnames = deployer.config['instances'].keys()
+
+    deployer.backup_remote_data(node_names=hostnames)
+
+
+@cli.command('get-ops-info')
+@click.option('--provider', help="The cloud provider host(s) are running on", multiple=False, type=click.Choice(['aws', 'digitalocean']))
+@click.option('--source-inventory', help="The bare inventory file for access", multiple=False, type=click.STRING)
+def get_ops_info(provider, source_inventory):
+    playbook = Path(PLAYBOOKS).joinpath('gather_ursula_ops_data.yml')
+
+    output_capture = {
+        'hostname': [],
+        'instance-id': [],
+        'docker-image': [],
+        'domain': [],
+        'rest-host': [],
+        'rest-port': [],
+        'keystore-password': [],
+        'operator-address': [],
+        'operator-password': [],
+        'eth-provider': [],
+        'payment-provider': [],
+        'payment-network': [],
+        'payment-method': []
+    }
+
+    loader = DataLoader()
+    inventory = InventoryManager(
+        loader=loader, sources=source_inventory)
+    callback = AnsiblePlayBookResultsCollector(
+        sock=emitter,
+        return_results=output_capture
+    )
+    variable_manager = VariableManager(loader=loader, inventory=inventory)
+
+    executor = PlaybookExecutor(
+        playbooks=[playbook],
+        inventory=inventory,
+        variable_manager=variable_manager,
+        loader=loader,
+        passwords=dict(),
+    )
+
+    executor._tqm._stdout_callback = callback
+    executor.run()
