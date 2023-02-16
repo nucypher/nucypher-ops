@@ -21,6 +21,12 @@
         cmd: docker inspect {{ursula_container_name.stdout}} --format \{\{.Config.Image\}\}
       register: running_docker_image
 
+    - name: "Get SSH Fingerprint"
+      become: yes
+      shell:
+        cmd: ssh-keygen -l -f ~/.ssh/authorized_keys -E md5 | cut -d " " -f 2 | cut -d ":" -f 2-
+      register: ssh_fingerprint
+
     - name: "Keystore Password"
       become: yes
       shell:
@@ -58,17 +64,21 @@
       ignore_errors: no
       debug:
         msg:
-          " hostname:               {{ursula_hostname.stdout}}\n
-           instance-id:            {{instance_id.stdout}}\n
-           docker-image:           {{running_docker_image.stdout}}\n
-           domain:                 {{ursula_config.domain}}\n
-           rest-host:              {{ursula_config.rest_host}}\n
-           rest-port:              {{ursula_config.rest_port}}\n
-           keystore-password:      {{keystore_password.stdout}}\n
-           operator-address:       {{ursula_config.operator_address}}\n
-           operator-password:      {{operator_password.stdout}}\n
-           eth-provider:           {{ursula_config.eth_provider_uri}}\n
-           payment-provider:       {{ursula_config.payment_provider}}\n
-           payment-network:        {{ursula_config.payment_network}}\n
-           payment-method:         {{ursula_config.payment_method}}\n
+          " InstanceId:             {{instance_id.stdout}}\n
+           publicaddress:          {{ursula_config.rest_host}}\n
+           installed:              ursula\n
+           host_nickname:          {{ursula_hostname.stdout}}\n
+           eth_provider:           {{ursula_config.eth_provider_uri}}\n
+           payment_provider:       {{ursula_config.payment_provider}}\n
+           payment_network:        {{ursula_config.payment_network}}\n
+           docker_image:           {{running_docker_image.stdout}}\n
+           operator address:       {{ursula_config.operator_address}}\n
+           nickname:               {{ursula_hostname.stdout}}\n
+           rest url:               https://{{ursula_config.rest_host}}:{{ursula_config.rest_port}}\n
+           _rest-host              {{ursula_config.rest_host}}\n
+           _ssh-fingerprint:       {{ssh_fingerprint.stdout}}\n
+           _instance-region:       {{instance_region.stdout | upper}}\n
+           _domain:                {{ursula_config.domain}}\n
+           _keystore-password:     {{keystore_password.stdout}}\n
+           _operator-password:     {{operator_password.stdout}}\n
           "

@@ -1,32 +1,27 @@
 import copy
 import json
-import random
-
-import pkgutil
-
-import maya
 import os
-import requests
+import random
 import time
 import warnings
+from base64 import b64encode, b64decode
+from pathlib import Path
+
+import maya
+import requests
 from ansible.executor.playbook_executor import PlaybookExecutor
 from ansible.inventory.manager import InventoryManager
 from ansible.parsing.dataloader import DataLoader
-
 from ansible.vars.manager import VariableManager
-from base64 import b64encode, b64decode
 from mako.template import Template
-from pathlib import Path
-
-from nucypher_ops.ops.ansible_utils import AnsiblePlayBookResultsCollector
 
 from nucypher_ops.constants import (
     CHAIN_NAMES, NETWORKS, DEFAULT_CONFIG_ROOT, PLAYBOOKS, TEMPLATES,
     NUCYPHER_ENVVAR_KEYSTORE_PASSWORD,
     NUCYPHER_ENVVAR_OPERATOR_ETHEREUM_PASSWORD, PAYMENT_NETWORKS, PAYMENT_NETWORK_CHOICES
 )
-
 from nucypher_ops.ops import keygen
+from nucypher_ops.ops.ansible_utils import AnsiblePlayBookResultsCollector
 from nucypher_ops.ops.contracts import NuCypherContractRegistry
 
 try:
@@ -92,6 +87,7 @@ class BaseCloudNodeConfigurator:
     def __init__(self,  # TODO: Add type annotations
                  emitter,
                  seed_network=None,
+                 recovery_mode = False,
                  pre_config=False,
                  network=None,
                  namespace=None,
@@ -111,6 +107,7 @@ class BaseCloudNodeConfigurator:
         self.resource_name = resource_name
         self.kwargs = kwargs
         self.contract_registry = None
+        self.recovery_mode = recovery_mode
 
         self.envvars = envvars or []
         if self.envvars:
@@ -133,7 +130,7 @@ class BaseCloudNodeConfigurator:
 
         self.created_new_nodes = False
 
-        if pre_config:
+        if pre_config or recovery_mode:
             self.config = pre_config
             self.namespace_network = self.config.get('namespace')
             return
@@ -678,6 +675,16 @@ class BaseCloudNodeConfigurator:
 
     def _destroy_resources(self, *args, **kwargs):
         raise NotImplementedError
+
+    def recover_instance_config(self, instance_data, config_filepath=None):
+        if not self.recovery_mode:
+            raise ValueError("Don't call function unless in recovery mode")
+
+        if not config_filepath:
+            config_filepath = self.network_config_path / self.namespace / self.config_filename
+        self.config_path = config_filepath
+        self._configure_provider_params()  # need provider access token
+        self.update_captured_instance_data(instance_data)
 
     def update_captured_instance_data(self, results):
         instances_by_public_address = {

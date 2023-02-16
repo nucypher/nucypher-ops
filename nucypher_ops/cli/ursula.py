@@ -7,8 +7,7 @@ from ansible.inventory.manager import InventoryManager
 from ansible.parsing.dataloader import DataLoader
 from ansible.vars.manager import VariableManager
 
-from nucypher_ops.constants import DEFAULT_NAMESPACE, DEFAULT_NETWORK
-from nucypher_ops.constants import PLAYBOOKS
+from nucypher_ops.constants import DEFAULT_NAMESPACE, DEFAULT_NETWORK, PLAYBOOKS
 from nucypher_ops.ops.ansible_utils import AnsiblePlayBookResultsCollector
 from nucypher_ops.ops.fleet_ops import CloudDeployers
 
@@ -185,8 +184,6 @@ def backupdir(verbose, namespace, network):
 @click.option('--source-nickname', 'source_nickname', help="The nickname of the node whose data you are moving to the new machine", type=click.STRING, required=False)
 def restore(namespace, network, target_host, source_path, source_nickname):
     """Restores a backup of a worker to an existing host"""
-
-
     if not source_path and not source_nickname:
         emitter.echo("You must either specify the path to a backup on disk (ie. `/Users/Alice/Library/Application Support/nucypher-ops/configs/), or the name of an existing ursula config (ie. `mainnet-nucypher-1`")
 
@@ -210,34 +207,50 @@ def backup(namespace, network, include_host):
     deployer.backup_remote_data(node_names=hostnames)
 
 
-@cli.command('get-ops-info')
-@click.option('--provider', help="The cloud provider host(s) are running on", multiple=False, type=click.Choice(['aws', 'digitalocean']))
-@click.option('--source-inventory', help="The bare inventory file for access", multiple=False, type=click.STRING)
-def get_ops_info(provider, source_inventory):
+@cli.command('recover-node-config')
+@click.option('--include-host', 'include_hosts', help="specify hosts to recover", multiple=True, required=True, type=click.STRING)
+@click.option('--provider', help="The cloud provider host(s) are running on", multiple=False,required=True, type=click.Choice(['aws', 'digitalocean']))
+@click.option('--namespace', help="Namespace for these operations", type=click.STRING, default=DEFAULT_NAMESPACE)
+@click.option('--login-name', help="The name username of a user with root privileges we can ssh as on the host.", default="root")
+@click.option('--key-path', 'ssh_key_path', help="The path to a keypair we will need to ssh into this host (default: ~/.ssh/id_rsa)", default="~/.ssh/id_rsa")
+@click.option('--ssh-port', help="The port this host's ssh daemon is listening on (default: 22)", default=22)
+def recover_node_config(include_hosts, namespace, provider, login_name, ssh_key_path, ssh_port):
     playbook = Path(PLAYBOOKS).joinpath('gather_ursula_ops_data.yml')
 
-    output_capture = {
-        'hostname': [],
-        'instance-id': [],
-        'docker-image': [],
-        'domain': [],
-        'rest-host': [],
-        'rest-port': [],
-        'keystore-password': [],
-        'operator-address': [],
-        'operator-password': [],
-        'eth-provider': [],
-        'payment-provider': [],
-        'payment-network': [],
-        'payment-method': []
+    instance_capture = {
+        'InstanceId': [],
+        'publicaddress': [],
+        'installed': [],
+        'host_nickname': [],
+        'eth_provider': [],
+        'payment_provider': [],
+        'payment_network': [],
+        'docker_image': [],
+        'operator address': [],
+        'nickname': [],
+        'rest url': [],
+
+        # non-instance dictionary data
+        '_ssh-fingerprint': [],
+        '_instance-region': [],
+        '_domain': [],
+        '_keystore-password': [],
+        '_operator-password': []
     }
 
+    inventory_host_list = '{},'.format(",".join(include_hosts))
     loader = DataLoader()
     inventory = InventoryManager(
-        loader=loader, sources=source_inventory)
+         loader=loader, sources=inventory_host_list)
+    hosts = inventory.get_hosts()
+    for host in hosts:
+        host.set_variable('ansible_ssh_private_key_file', ssh_key_path)
+        host.set_variable('default_user', login_name)
+        host.set_variable('ansible_port', ssh_port)
+        host.set_variable('ansible_connection', 'ssh')
     callback = AnsiblePlayBookResultsCollector(
         sock=emitter,
-        return_results=output_capture
+        return_results=instance_capture
     )
     variable_manager = VariableManager(loader=loader, inventory=inventory)
 
@@ -251,3 +264,70 @@ def get_ops_info(provider, source_inventory):
 
     executor._tqm._stdout_callback = callback
     executor.run()
+
+    # process data capture
+    # 1. remove namespace metadata i.e. keys with underscores
+    # 2. add deploy attributes
+    namespace_metadata = {}
+    metadata_keys = []
+    for k in list(instance_capture.keys()):
+        if k.startswith("_"):
+            metadata_keys.append(k)
+            data = instance_capture.pop(k)  # pop off non-instance specific data
+            for instance_address, value in data:
+                instance = namespace_metadata.get(instance_address, {})
+                instance[k] = value
+                namespace_metadata[instance_address] = instance
+
+                # add deploy attrs to instance data
+                attributes = instance_capture.get("provider_deploy_attrs", list())
+                entry = (
+                    instance_address,
+                    [
+                        {'key': 'ansible_ssh_private_key_file', 'value': ssh_key_path},
+                        {'key': 'default_user', 'value': login_name},
+                        {'key': 'ansible_port', 'value': ssh_port}
+                    ]
+                )
+                attributes.append(entry)
+                instance_capture["provider_deploy_attrs"] = attributes
+
+    # verify namespace metadata is the same for all nodes
+    ip_addresses = list(namespace_metadata.keys())
+    comparator_address = ip_addresses[0]
+    comparator_address_data = namespace_metadata[comparator_address]
+    for instance_address, instance_data in namespace_metadata.items():
+        if instance_address != comparator_address:
+            for k in metadata_keys:
+                if comparator_address_data[k] != instance_data[k]:
+                    raise ValueError(f"Collected {k} data doesn't match "
+                                     f"{comparator_address} ({comparator_address_data[k]}) vs"
+                                     f"{instance_address} ({instance_data[k]}) ")
+
+    pre_config_metadata = {
+        "namespace": namespace,
+        "keystorepassword": comparator_address_data['_keystore-password'],
+        "ethpassword": comparator_address_data['_operator-password'],
+        "keystoremnemonic": None,
+        "sshkey": comparator_address_data['_ssh-fingerprint'],
+    }
+
+    if provider == 'digitalocean':
+        pre_config_metadata['digital-ocean-region'] = comparator_address_data['_instance-region']
+
+    instances_dict = {}
+    for ip_address in ip_addresses:
+        instances_dict[ip_address] = {
+            "publicaddress": ip_address,
+        }
+    pre_config_metadata["instances"] = instances_dict
+
+    deployer = CloudDeployers.get_deployer(provider)(
+        emitter,
+        recovery_mode=True,
+        namespace=namespace,
+        network=comparator_address_data['_domain'],
+        pre_config=pre_config_metadata
+    )
+
+    deployer.recover_instance_config(instance_data=instance_capture)
