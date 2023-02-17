@@ -320,7 +320,7 @@ def recover_node_config(include_hosts, namespace, provider, login_name, ssh_key_
         "sshkey": comparator_address_data['_ssh-fingerprint'],
     }
 
-    # 3. remove metadata that needs some additional processing; keys that start with '.'
+    # 3. remove/process metadata that needs some additional processing; keys that start with '.' eg. .cli-args
     ignore_set = {"ursula", "run", "--network", network}
     cli_args = instance_capture.pop('.cli-args')
     for instance_address, runtime_args in cli_args:
@@ -328,21 +328,31 @@ def recover_node_config(include_hosts, namespace, provider, login_name, ssh_key_
         if '--lonely' in runtime_args:
             pre_config_metadata['seed_node'] = instance_address
 
-        # additional_cli_args = set(runtime_args.split(",")) - ignore_set
-        # ursula_cli_args = instance_capture.get("runtime_cliargs", [])
-        # if not ursula_cli_args:
-        #     instance_capture["runtime_cliargs"] = ursula_cli_args
-        #
-        # arg_list = []
-        # for additional_arg in additional_cli_args:
-        #     if '=' in additional_arg:
-        #         arg_list.append(additional_arg.split('='))
-        #     else:
-        #         # allow for --flags like '--prometheus'
-        #         arg_list.append((additional_arg, ""))
-        # ursula_cli_args.append(
-        #     (instance_address, arg_list)
-        # )
+        ursula_runtime_args = runtime_args.split(",")
+        index = 0
+        num_runtime_args = len(ursula_runtime_args)
+        addtional_args = {}
+        while index < num_runtime_args:
+            arg = ursula_runtime_args[index]
+            if arg not in ignore_set:
+                if arg.startswith("--"):
+                    # either single value like `--debug` or paired value like `--max-gas-price 50`
+                    arg_key = arg[2:]
+                    arg_value = ""   # single value
+                    if (index+1) < num_runtime_args and not ursula_runtime_args[index+1].startswith('--'):
+                        # paired value
+                        arg_value = ursula_runtime_args[index+1]
+                        index += 1
+                    addtional_args[arg_key] = arg_value
+            index += 1
+
+        ursula_cli_args = instance_capture.get("runtime_cliargs", [])
+        if not ursula_cli_args:
+            instance_capture["runtime_cliargs"] = ursula_cli_args
+
+        ursula_cli_args.append(
+            (instance_address, addtional_args)
+        )
 
     # 4. Recover config
     if provider == 'digitalocean':
@@ -373,5 +383,5 @@ def recover_node_config(include_hosts, namespace, provider, login_name, ssh_key_
     # regenerate instance configuration file
     deployer.recover_instance_config(instance_data=instance_capture)
 
-    # regenerate inventoory file
+    # regenerate inventory file
     deployer.update_generate_inventory(node_names)
