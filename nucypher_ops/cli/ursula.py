@@ -209,7 +209,7 @@ def backup(namespace, network, include_host):
 
 @cli.command('recover-node-config')
 @click.option('--include-host', 'include_hosts', help="specify hosts to recover", multiple=True, required=True, type=click.STRING)
-@click.option('--provider', help="The cloud provider host(s) are running on", multiple=False, required=True, type=click.Choice(['aws', 'digitalocean']))
+@click.option('--provider', help="The cloud provider host(s) are running on", multiple=False, required=True, type=click.Choice(['digitalocean']))  # TODO: only DO allowed for now
 @click.option('--namespace', help="Namespace for these operations", type=click.STRING, default=DEFAULT_NAMESPACE)
 @click.option('--login-name', help="The name username of a user with root privileges we can ssh as on the host.", default="root")
 @click.option('--key-path', 'ssh_key_path', help="The path to a keypair we will need to ssh into this host (default: ~/.ssh/id_rsa)", default="~/.ssh/id_rsa")

@@ -2,6 +2,7 @@
   hosts: "{{ play_hosts }}"
   remote_user: "{{default_user}}"
   gather_facts: no
+  any_errors_fatal: true
   tasks:
 
     - name: "Get Hostname"
