@@ -15,18 +15,6 @@
         cmd: docker ps --no-trunc | grep ursula | cut -f 1 -d " "
       register: ursula_container_name
 
-    - name: "Get Docker Image"
-      become: yes
-      shell:
-        cmd: docker inspect {{ursula_container_name.stdout}} --format \{\{.Config.Image\}\}
-      register: running_docker_image
-
-    - name: "Get SSH Fingerprint"
-      become: yes
-      shell:
-        cmd: ssh-keygen -l -f ~/.ssh/authorized_keys -E md5 | cut -d " " -f 2 | cut -d ":" -f 2-
-      register: ssh_fingerprint
-
     - name: "Keystore Password"
       become: yes
       shell:
@@ -38,6 +26,24 @@
       shell:
         cmd: docker inspect {{ursula_container_name.stdout}} --format \{\{range\ .Config.Env\}\}\{\{println\ .\}\}\{\{end\}\} | grep "NUCYPHER_OPERATOR_ETH_PASSWORD" | cut -d "=" -f 2-
       register: operator_password
+
+    - name: "Get Ursula CLI Args"
+      shell:
+        cmd: docker inspect {{ursula_container_name.stdout}} --format \{\{join\ .Args\ \",\"\}\}
+      register: ursula_cli_args
+
+
+    - name: "Get Docker Image"
+      become: yes
+      shell:
+        cmd: docker inspect {{ursula_container_name.stdout}} --format \{\{.Config.Image\}\}
+      register: running_docker_image
+
+    - name: "Get SSH Fingerprint"
+      become: yes
+      shell:
+        cmd: ssh-keygen -l -f ~/.ssh/authorized_keys -E md5 | cut -d " " -f 2 | cut -d ":" -f 2-
+      register: ssh_fingerprint
 
     - name: "Get DO Instance ID"
       become: yes
@@ -66,7 +72,6 @@
         msg:
           " InstanceId:             {{instance_id.stdout}}\n
            publicaddress:          {{ursula_config.rest_host}}\n
-           installed:              ursula\n
            host_nickname:          {{ursula_hostname.stdout}}\n
            eth_provider:           {{ursula_config.eth_provider_uri}}\n
            payment_provider:       {{ursula_config.payment_provider}}\n
@@ -81,4 +86,5 @@
            _domain:                {{ursula_config.domain}}\n
            _keystore-password:     {{keystore_password.stdout}}\n
            _operator-password:     {{operator_password.stdout}}\n
+           .cli-args:               {{ursula_cli_args.stdout}}\n
           "

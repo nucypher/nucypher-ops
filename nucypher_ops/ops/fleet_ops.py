@@ -133,6 +133,8 @@ class BaseCloudNodeConfigurator:
         if pre_config or recovery_mode:
             self.config = pre_config
             self.namespace_network = self.config.get('namespace')
+            if recovery_mode:
+                self.namespace_network = f'{self.network}-{self.namespace}'
             return
 
         # where we save our state data so we can remember the resources we created for future use
@@ -204,7 +206,6 @@ class BaseCloudNodeConfigurator:
         return 'nucypher'
 
     def _write_config(self):
-
         config_dir = self.config_path.parent
         config_dir.mkdir(parents=True, exist_ok=True)
 
@@ -683,8 +684,31 @@ class BaseCloudNodeConfigurator:
         if not config_filepath:
             config_filepath = self.network_config_path / self.namespace / self.config_filename
         self.config_path = config_filepath
+        self.config_dir = self.config_path.parent
+        instances_by_public_address = {}
+        for k, data in instance_data.items():
+            for instance_address, value in data:
+                instance_dict = instances_by_public_address.get(instance_address, {})
+                if not instance_dict:
+                    instances_by_public_address[instance_address] = instance_dict
+                instance_dict[k] = value
+
+        # index instance using host_nickname, and not publicaddress
+        for instance_address, instance_values in instances_by_public_address.items():
+            config_instances_dict = self.config.get("instances", {})
+            if not instance_data:
+                self.config["instances"] = config_instances_dict
+
+            host_nickname = instance_values["host_nickname"]
+            for k, v in instance_values.items():
+                instance_dict = config_instances_dict.get(host_nickname, {})
+                if not instance_dict:
+                    config_instances_dict[host_nickname] = instance_dict
+
+                instance_dict[k] = v
+
         self._configure_provider_params()  # need provider access token
-        self.update_captured_instance_data(instance_data)
+        self._write_config()
 
     def update_captured_instance_data(self, results):
         instances_by_public_address = {

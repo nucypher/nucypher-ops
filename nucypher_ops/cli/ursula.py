@@ -197,7 +197,7 @@ def restore(namespace, network, target_host, source_path, source_nickname):
 @click.option('--network', help="The Nucypher network name these hosts are running on.", type=click.STRING, default=DEFAULT_NETWORK)
 @click.option('--include-host', help="The nickname of the host to backup", multiple=False, type=click.STRING, required=False)
 def backup(namespace, network, include_host):
-    """Restores a backup of a worker to an existing host"""
+    """Stores a backup of a worker running on an existing host"""
     deployer = CloudDeployers.get_deployer('generic')(emitter, namespace=namespace, network=network)
     if include_host:
         hostnames = [include_host]
@@ -209,7 +209,7 @@ def backup(namespace, network, include_host):
 
 @cli.command('recover-node-config')
 @click.option('--include-host', 'include_hosts', help="specify hosts to recover", multiple=True, required=True, type=click.STRING)
-@click.option('--provider', help="The cloud provider host(s) are running on", multiple=False,required=True, type=click.Choice(['aws', 'digitalocean']))
+@click.option('--provider', help="The cloud provider host(s) are running on", multiple=False, required=True, type=click.Choice(['aws', 'digitalocean']))
 @click.option('--namespace', help="Namespace for these operations", type=click.STRING, default=DEFAULT_NAMESPACE)
 @click.option('--login-name', help="The name username of a user with root privileges we can ssh as on the host.", default="root")
 @click.option('--key-path', 'ssh_key_path', help="The path to a keypair we will need to ssh into this host (default: ~/.ssh/id_rsa)", default="~/.ssh/id_rsa")
@@ -235,7 +235,10 @@ def recover_node_config(include_hosts, namespace, provider, login_name, ssh_key_
         '_instance-region': [],
         '_domain': [],
         '_keystore-password': [],
-        '_operator-password': []
+        '_operator-password': [],
+
+        # values need further processing
+        '.cli-args': [],
     }
 
     inventory_host_list = '{},'.format(",".join(include_hosts))
@@ -265,9 +268,9 @@ def recover_node_config(include_hosts, namespace, provider, login_name, ssh_key_
     executor._tqm._stdout_callback = callback
     executor.run()
 
-    # process data capture
-    # 1. remove namespace metadata i.e. keys with underscores
-    # 2. add deploy attributes
+    #
+    # Process data capture
+    # 1. remove namespace metadata; keys that start with '_'
     namespace_metadata = {}
     metadata_keys = []
     for k in list(instance_capture.keys()):
@@ -276,25 +279,12 @@ def recover_node_config(include_hosts, namespace, provider, login_name, ssh_key_
             data = instance_capture.pop(k)  # pop off non-instance specific data
             for instance_address, value in data:
                 instance = namespace_metadata.get(instance_address, {})
+                if not instance:
+                    namespace_metadata[instance_address] = instance
                 instance[k] = value
-                namespace_metadata[instance_address] = instance
-
-                # add deploy attrs to instance data
-                attributes = instance_capture.get("provider_deploy_attrs", list())
-                entry = (
-                    instance_address,
-                    [
-                        {'key': 'ansible_ssh_private_key_file', 'value': ssh_key_path},
-                        {'key': 'default_user', 'value': login_name},
-                        {'key': 'ansible_port', 'value': ssh_port}
-                    ]
-                )
-                attributes.append(entry)
-                instance_capture["provider_deploy_attrs"] = attributes
 
     # verify namespace metadata is the same for all nodes
-    ip_addresses = list(namespace_metadata.keys())
-    comparator_address = ip_addresses[0]
+    comparator_address = include_hosts[0]
     comparator_address_data = namespace_metadata[comparator_address]
     for instance_address, instance_data in namespace_metadata.items():
         if instance_address != comparator_address:
@@ -304,30 +294,84 @@ def recover_node_config(include_hosts, namespace, provider, login_name, ssh_key_
                                      f"{comparator_address} ({comparator_address_data[k]}) vs"
                                      f"{instance_address} ({instance_data[k]}) ")
 
+    network = comparator_address_data['_domain']
+
+    # 2. add deploy attributes
+    for host in include_hosts:
+        # add deploy attrs to instance data
+        deploy_attrs = instance_capture.get("provider_deploy_attrs", list())
+        if not deploy_attrs:
+            instance_capture["provider_deploy_attrs"] = deploy_attrs
+        entry = (
+            host,
+            [
+                {'key': 'ansible_ssh_private_key_file', 'value': ssh_key_path},
+                {'key': 'default_user', 'value': login_name},
+                {'key': 'ansible_port', 'value': ssh_port}
+            ]
+        )
+        deploy_attrs.append(entry)
+
     pre_config_metadata = {
-        "namespace": namespace,
+        "namespace": f'{namespace}-{network}',
         "keystorepassword": comparator_address_data['_keystore-password'],
         "ethpassword": comparator_address_data['_operator-password'],
-        "keystoremnemonic": None,
+        "keystoremnemonic": "N/A (recovery mode)",
         "sshkey": comparator_address_data['_ssh-fingerprint'],
     }
 
+    # 3. remove metadata that needs some additional processing; keys that start with '.'
+    ignore_set = {"ursula", "run", "--network", network}
+    cli_args = instance_capture.pop('.cli-args')
+    for instance_address, runtime_args in cli_args:
+        # check for seed node
+        if '--lonely' in runtime_args:
+            pre_config_metadata['seed_node'] = instance_address
+
+        # additional_cli_args = set(runtime_args.split(",")) - ignore_set
+        # ursula_cli_args = instance_capture.get("runtime_cliargs", [])
+        # if not ursula_cli_args:
+        #     instance_capture["runtime_cliargs"] = ursula_cli_args
+        #
+        # arg_list = []
+        # for additional_arg in additional_cli_args:
+        #     if '=' in additional_arg:
+        #         arg_list.append(additional_arg.split('='))
+        #     else:
+        #         # allow for --flags like '--prometheus'
+        #         arg_list.append((additional_arg, ""))
+        # ursula_cli_args.append(
+        #     (instance_address, arg_list)
+        # )
+
+    # 4. Recover config
     if provider == 'digitalocean':
         pre_config_metadata['digital-ocean-region'] = comparator_address_data['_instance-region']
 
+    # set up pre-config instances
+    node_names = []
     instances_dict = {}
-    for ip_address in ip_addresses:
-        instances_dict[ip_address] = {
+    for ip_address, host_nickname in instance_capture['host_nickname']:
+        instances_dict[host_nickname] = {
             "publicaddress": ip_address,
+            "installed": ["ursula"],
+            "provider": provider,
         }
+
+        node_names.append(host_nickname)  # store node names
+
     pre_config_metadata["instances"] = instances_dict
 
     deployer = CloudDeployers.get_deployer(provider)(
         emitter,
         recovery_mode=True,
         namespace=namespace,
-        network=comparator_address_data['_domain'],
+        network=network,
         pre_config=pre_config_metadata
     )
 
+    # regenerate instance configuration file
     deployer.recover_instance_config(instance_data=instance_capture)
+
+    # regenerate inventoory file
+    deployer.update_generate_inventory(node_names)
