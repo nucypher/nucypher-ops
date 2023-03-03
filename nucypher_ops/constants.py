@@ -31,6 +31,7 @@ NETWORKS = {
     'lynx': {'policy': GOERLI, 'payment': POLYGON_MUMBAI},
     'tapir': {'policy': GOERLI, 'payment': POLYGON_MUMBAI},
     'test': {'policy': GOERLI, 'payment': POLYGON_MUMBAI},
+    'oryx': {'policy': GOERLI, 'payment': POLYGON_MAINNET}
 }
 
 PAYMENT_NETWORKS = ('polygon', 'mumbai')
