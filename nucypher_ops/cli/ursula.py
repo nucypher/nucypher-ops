@@ -7,6 +7,8 @@ from ansible.inventory.manager import InventoryManager
 from ansible.parsing.dataloader import DataLoader
 from ansible.vars.manager import VariableManager
 
+from nucypher_ops.cli.recover_utils import compare_and_remove_common_namespace_data, \
+    add_deploy_attributes
 from nucypher_ops.constants import DEFAULT_NAMESPACE, DEFAULT_NETWORK, PLAYBOOKS
 from nucypher_ops.ops.ansible_utils import AnsiblePlayBookResultsCollector
 from nucypher_ops.ops.fleet_ops import CloudDeployers
@@ -215,7 +217,7 @@ def backup(namespace, network, include_host):
 @click.option('--key-path', 'ssh_key_path', help="The path to a keypair we will need to ssh into this host (default: ~/.ssh/id_rsa)", default="~/.ssh/id_rsa")
 @click.option('--ssh-port', help="The port this host's ssh daemon is listening on (default: 22)", default=22)
 def recover_node_config(include_hosts, namespace, provider, login_name, ssh_key_path, ssh_port):
-    playbook = Path(PLAYBOOKS).joinpath('gather_ursula_ops_data.yml')
+    playbook = Path(PLAYBOOKS).joinpath('recover_ursula_ops_data.yml')
 
     instance_capture = {
         'InstanceId': [],
@@ -271,46 +273,11 @@ def recover_node_config(include_hosts, namespace, provider, login_name, ssh_key_
     #
     # Process data capture
     # 1. remove namespace metadata; keys that start with '_'
-    namespace_metadata = {}
-    metadata_keys = []
-    for k in list(instance_capture.keys()):
-        if k.startswith("_"):
-            metadata_keys.append(k)
-            data = instance_capture.pop(k)  # pop off non-instance specific data
-            for instance_address, value in data:
-                instance = namespace_metadata.get(instance_address, {})
-                if not instance:
-                    namespace_metadata[instance_address] = instance
-                instance[k] = value
-
-    # verify namespace metadata is the same for all nodes
-    comparator_address = include_hosts[0]
-    comparator_address_data = namespace_metadata[comparator_address]
-    for instance_address, instance_data in namespace_metadata.items():
-        if instance_address != comparator_address:
-            for k in metadata_keys:
-                if comparator_address_data[k] != instance_data[k]:
-                    raise ValueError(f"Collected {k} data doesn't match "
-                                     f"{comparator_address} ({comparator_address_data[k]}) vs"
-                                     f"{instance_address} ({instance_data[k]}) ")
-
+    comparator_address_data = compare_and_remove_common_namespace_data(instance_capture, include_hosts)
     network = comparator_address_data['_domain']
 
     # 2. add deploy attributes
-    for host in include_hosts:
-        # add deploy attrs to instance data
-        deploy_attrs = instance_capture.get("provider_deploy_attrs", list())
-        if not deploy_attrs:
-            instance_capture["provider_deploy_attrs"] = deploy_attrs
-        entry = (
-            host,
-            [
-                {'key': 'ansible_ssh_private_key_file', 'value': ssh_key_path},
-                {'key': 'default_user', 'value': login_name},
-                {'key': 'ansible_port', 'value': ssh_port}
-            ]
-        )
-        deploy_attrs.append(entry)
+    add_deploy_attributes(instance_capture, include_hosts, ssh_key_path, login_name, ssh_port)
 
     pre_config_metadata = {
         "namespace": f'{namespace}-{network}',
@@ -377,7 +344,8 @@ def recover_node_config(include_hosts, namespace, provider, login_name, ssh_key_
         recovery_mode=True,
         namespace=namespace,
         network=network,
-        pre_config=pre_config_metadata
+        pre_config=pre_config_metadata,
+        resource_name='nucypher',
     )
 
     # regenerate instance configuration file

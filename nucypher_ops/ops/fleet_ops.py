@@ -282,7 +282,7 @@ class BaseCloudNodeConfigurator:
                  value in self.config['instances'].items() if key in node_names}
         if not nodes:
             raise KeyError(
-                f"No hosts matched the supplied names: {node_names}.  Try `nucypher cloudworkers list-hosts` or create new hosts with `nucypher-ops nodes create`")
+                f"No hosts matched the supplied host names: {node_names}; ensure `host-nickname` is used.  Try `nucypher-ops nodes list --all` to view hosts or create new hosts with `nucypher-ops nodes create`")
 
         defaults = self.default_config()
         if generate_keymaterial or kwargs.get('migrate_nucypher') or kwargs.get('init'):
@@ -402,7 +402,6 @@ class BaseCloudNodeConfigurator:
                         self.config['instances'][node_name][k] = input_values[k]
 
                 self._write_config()
-        # print(json.dumps(self.config['instances'], indent=4))
 
     def deploy_nucypher_on_existing_nodes(self, node_names, migrate_nucypher=False, init=False, **kwargs):
 
@@ -1796,6 +1795,9 @@ class tBTCv2Deployer(GenericDeployer):
         self.playbook_name = "include/get_operator_address.yml"
         return super().deploy(*args, **kwargs)
 
+    def _format_runtime_options(self, node_options):
+        # override function to not automatically include `--network <value>`
+        return ' '.join([f'--{name} {value}' for name, value in node_options.items()])
 
 
 class EthDeployer(GenericDeployer):

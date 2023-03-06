@@ -1,4 +1,4 @@
-- name: "Ursula Ops Data"
+- name: "Obtain Ursula Ops Data from Running Service"
   hosts: "{{ play_hosts }}"
   remote_user: "{{default_user}}"
   gather_facts: no
@@ -33,7 +33,6 @@
         cmd: docker inspect {{ursula_container_name.stdout}} --format \{\{join\ .Args\ \",\"\}\}
       register: ursula_cli_args
 
-
     - name: "Get Docker Image"
       become: yes
       shell:
@@ -63,7 +62,7 @@
       shell: cat /home/nucypher/nucypher/ursula.json
       register: ursula_config_result
 
-    - name: "Save Ursula config as json"
+    - name: "Save Ursula config as JSON"
       set_fact:
         ursula_config: "{{ ursula_config_result.stdout | from_json }}"
 
