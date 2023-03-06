@@ -111,10 +111,10 @@ class BaseCloudNodeConfigurator:
 
         self.envvars = envvars or []
         if self.envvars:
-            if not all([(len(v.split('=')) == 2) for v in self.envvars]):
+            if not all([(len(v.split('=', maxsplit=1)) == 2) for v in self.envvars]):
                 raise ValueError(
                     "Improperly specified environment variables: --env variables must be specified in pairs as `<name>=<value>`")
-            self.envvars = [v.split('=') for v in (self.envvars)]
+            self.envvars = [v.split('=', maxsplit=1) for v in (self.envvars)]
 
         cliargs = cliargs or []
         self.cliargs = []
@@ -834,7 +834,7 @@ class BaseCloudNodeConfigurator:
             if not self.config['instances'][instance].get('index'):
                 self.config['instances'][instance]['index'] = index
             if instance.runtime_envvars.get('NUCYPHER_WORKER_ETH_PASSWORD'):
-                instance.runtime_envvars['NUCYPHER_OPERATOR_ETHEREUM_PASSWORD'] = instance.runtime_envvars.get(
+                instance.runtime_envvars[NUCYPHER_ENVVAR_OPERATOR_ETHEREUM_PASSWORD] = instance.runtime_envvars.get(
                     'NUCYPHER_WORKER_ETH_PASSWORD')
                 del instance.runtime_envvars['NUCYPHER_WORKER_ETH_PASSWORD']
 
