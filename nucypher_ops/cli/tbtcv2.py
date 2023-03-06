@@ -28,6 +28,7 @@ def cli():
 @click.option('--env', '-e', 'envvars', help="Environment variables used during execution (ENVVAR=VALUE)", multiple=True, type=click.STRING, default=[])
 @click.option('--cli', '-c', 'cliargs', help="additional cli launching arguments", multiple=True, type=click.STRING, default=[])
 def stage(image, namespace, network, include_hosts, envvars, cliargs):
+    """Set up and configure tbtcv2 node but don't run it"""
     deployer = CloudDeployers.get_deployer('tbtcv2')(emitter,
                                                      docker_image=image,
                                                      namespace=namespace,
@@ -53,6 +54,7 @@ def stage(image, namespace, network, include_hosts, envvars, cliargs):
 @click.option('--env', '-e', 'envvars', help="Environment variables used during execution (ENVVAR=VALUE)", multiple=True, type=click.STRING, default=[])
 @click.option('--cli', '-c', 'cliargs', help="additional cli launching arguments", multiple=True, type=click.STRING, default=[])
 def run(image, namespace, network, include_hosts, envvars, cliargs):
+    """Start tbtcv2 node."""
     deployer = CloudDeployers.get_deployer('tbtcv2')(emitter,
                                                      docker_image=image,
                                                      namespace=namespace,
@@ -78,6 +80,7 @@ def run(image, namespace, network, include_hosts, envvars, cliargs):
 @click.option('--env', '-e', 'envvars', help="Environment variables used during execution (ENVVAR=VALUE)", multiple=True, type=click.STRING, default=[])
 @click.option('--cli', '-c', 'cliargs', help="additional cli launching arguments", multiple=True, type=click.STRING, default=[])
 def operator_address(image, namespace, network, include_hosts, envvars, cliargs):
+    """Determine operator address for specified hosts"""
     deployer = CloudDeployers.get_deployer('tbtcv2')(emitter,
                                                      docker_image=image,
                                                      namespace=namespace,
@@ -95,12 +98,12 @@ def operator_address(image, namespace, network, include_hosts, envvars, cliargs)
     deployer.get_operator_address(hostnames)
 
 
-
 @cli.command('stop')
 @click.option('--namespace', help="Namespace for these nodes.  Used to address hosts and data locally and name hosts on cloud platforms.", type=click.STRING, default=DEFAULT_NAMESPACE)
 @click.option('--network', help="The network name these hosts will run on.", type=click.STRING, default=DEFAULT_NETWORK)
 @click.option('--include-host', 'include_hosts', help="specify hosts to target", multiple=True, type=click.STRING)
 def stop(namespace, network, include_hosts):
+    """Stop tbtcv2 node(s)"""
     deployer = CloudDeployers.get_deployer('tbtcv2')(emitter,
                                                      namespace=namespace,
                                                      network=network,
@@ -125,7 +128,7 @@ def stop(namespace, network, include_hosts):
               type=click.STRING)
 def fund(amount, namespace, network, include_hosts):
     """
-    fund remote nodes automatically using a locally managed burner wallet
+    Fund remote nodes automatically using a locally managed burner wallet
     """
 
     deployer = CloudDeployers.get_deployer('tbtcv2')(emitter, namespace=namespace, network=network)
@@ -175,6 +178,7 @@ def fund(amount, namespace, network, include_hosts):
 @click.option('--include-host', 'include_hosts', help="Peform this operation on only the named hosts", multiple=True,
               type=click.STRING)
 def defund(amount, to_address, namespace, network, include_hosts):
+    """Transfer remaining ETH balance from operator address to another address"""
     deployer = CloudDeployers.get_deployer('generic')(emitter, namespace=namespace, network=network)
 
     hostnames = deployer.config['instances'].keys()
@@ -193,6 +197,7 @@ def defund(amount, to_address, namespace, network, include_hosts):
 @click.option('--key-path', 'ssh_key_path', help="The path to a keypair we will need to ssh into this host (default: ~/.ssh/id_rsa)", default="~/.ssh/id_rsa")
 @click.option('--ssh-port', help="The port this host's ssh daemon is listening on (default: 22)", default=22)
 def recover_node_config(include_hosts, provider, namespace, network, login_name, ssh_key_path, ssh_port):
+    """Regenerate previously lost/deleted node config(s)"""
     playbook = Path(PLAYBOOKS).joinpath('recover_tbtcv2_ops_data.yml')
 
     instance_capture = {

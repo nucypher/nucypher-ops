@@ -113,7 +113,7 @@ def status(fast, namespace, network, include_hosts):
 @click.option('--include-host', 'include_hosts', help="Peform this operation on only the named hosts", multiple=True, type=click.STRING)
 def fund(amount, namespace, network, include_hosts):
     """
-    fund remote nodes autmoatically using a locally managed burner wallet
+    fund remote nodes automatically using a locally managed burner wallet
     """
     
     deployer = CloudDeployers.get_deployer('generic')(emitter, namespace=namespace, network=network)
@@ -156,7 +156,7 @@ def fund(amount, namespace, network, include_hosts):
 @click.option('--network', help="The Nucypher network name these hosts will run on.", type=click.STRING, default=DEFAULT_NETWORK)
 @click.option('--include-host', 'include_hosts', help="Peform this operation on only the named hosts", multiple=True, type=click.STRING)
 def defund(amount, to_address, namespace, network, include_hosts):
-
+    """Transfer remaining ETH balance from operator address to another address"""
     deployer = CloudDeployers.get_deployer('generic')(emitter, namespace=namespace, network=network)
 
     hostnames = deployer.config['instances'].keys()
@@ -171,6 +171,7 @@ def defund(amount, to_address, namespace, network, include_hosts):
 @click.option('--namespace', help="Namespace for these operations.  Used to address hosts and data locally and name hosts on cloud platforms.", type=click.STRING, default=DEFAULT_NAMESPACE)
 @click.option('--network', help="The Nucypher network name these hosts will run on.", type=click.STRING, default=DEFAULT_NETWORK)
 def backupdir(verbose, namespace, network):
+    """Display backup directory for hosts within network and namespace"""
     deployer = CloudDeployers.get_deployer('generic')(emitter, namespace=namespace, network=network)
     hostnames = deployer.config['instances'].keys()
     for hostname in hostnames:   
@@ -217,6 +218,7 @@ def backup(namespace, network, include_host):
 @click.option('--key-path', 'ssh_key_path', help="The path to a keypair we will need to ssh into this host (default: ~/.ssh/id_rsa)", default="~/.ssh/id_rsa")
 @click.option('--ssh-port', help="The port this host's ssh daemon is listening on (default: 22)", default=22)
 def recover_node_config(include_hosts, namespace, provider, login_name, ssh_key_path, ssh_port):
+    """Regenerate previously lost/deleted node config(s)"""
     playbook = Path(PLAYBOOKS).joinpath('recover_ursula_ops_data.yml')
 
     instance_capture = {
