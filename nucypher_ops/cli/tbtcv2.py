@@ -253,7 +253,7 @@ def recover_node_config(include_hosts, provider, namespace, network, login_name,
 
     pre_config_metadata = {
         "namespace": f'{namespace}-{network}',
-        "keystorepassword": "N/A",
+        "keystorepassword": "N/A (recovery mode)",
         "ethpassword": comparator_address_data['_operator-password'],
         "keystoremnemonic": "N/A (recovery mode)",
         "sshkey": comparator_address_data['_ssh-fingerprint'],

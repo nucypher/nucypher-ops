@@ -1,3 +1,9 @@
+try:
+    import boto3
+except ModuleNotFoundError:
+    pass
+
+
 def compare_and_remove_common_namespace_data(instance_capture: dict, include_hosts) -> dict:
     # 1. remove namespace metadata; keys that start with '_'
     namespace_metadata = {}
@@ -41,3 +47,41 @@ def add_deploy_attributes(instance_capture, include_hosts, ssh_key_path, login_n
             ]
         )
         deploy_attrs.append(entry)
+
+
+def get_aws_instance_info(aws_profile, aws_region, ip_address) -> dict:
+    # aws ec2 describe-instances --filters Name=ip-address,Values=<ip>
+    aws_session = boto3.Session(profile_name=aws_profile, region_name=aws_region)
+    ec2Client = aws_session.client('ec2')
+    instance_info = ec2Client.describe_instances(
+        Filters=[
+            {'Values': [ip_address], 'Name': 'ip-address'},
+        ]
+    )['Reservations']['Instances'][0]
+
+    return instance_info
+
+
+def get_aws_internet_gateway_info(aws_profile, aws_region, vpc_id) -> dict:
+    # aws ec2 describe-internet-gateways --filters Name=attachment.vpc-id,Values=<VPCID>
+    aws_session = boto3.Session(profile_name=aws_profile, region_name=aws_region)
+    ec2Client = aws_session.client('ec2')
+    internet_gateway_info = ec2Client.describe_internet_gateways(
+        Filters=[
+            {'Values': [vpc_id], 'Name': 'attachment.vpc-id'},
+        ]
+    )['InternetGateways'][0]
+    return internet_gateway_info
+
+
+def get_aws_route_table_info(aws_profile, aws_region, subnet_id) -> dict:
+    # aws ec2 describe-route-tables --filters Name=association.subnet-id,Values=<SUBNET_ID>
+    aws_session = boto3.Session(profile_name=aws_profile, region_name=aws_region)
+    ec2Client = aws_session.client('ec2')
+    route_table_info = ec2Client.describe_route_tables(
+        Filters=[
+            {'Values': [subnet_id], 'Name': 'association.subnet-id'},
+        ]
+    )['RouteTables'][0]
+
+    return route_table_info

@@ -834,7 +834,7 @@ class BaseCloudNodeConfigurator:
             if not self.config['instances'][instance].get('index'):
                 self.config['instances'][instance]['index'] = index
             if instance.runtime_envvars.get('NUCYPHER_WORKER_ETH_PASSWORD'):
-                instance.runtime_envvars[NUCYPHER_ENVVAR_OPERATOR_ETHEREUM_PASSWORD] = instance.runtime_envvars.get(
+                instance.runtime_envvars['NUCYPHER_OPERATOR_ETH_PASSWORD'] = instance.runtime_envvars.get(
                     'NUCYPHER_WORKER_ETH_PASSWORD')
                 del instance.runtime_envvars['NUCYPHER_WORKER_ETH_PASSWORD']
 

@@ -24,8 +24,6 @@ def cli():
 @click.option('--network', help="The Nucypher network name these hosts will run on.", type=click.STRING, default=DEFAULT_NETWORK)
 def create(region, instance_type, cloudprovider, count, nickname, namespace, network):
     """Creates the required number of workers to be staked later under a namespace"""
-
-
     available_providers = ['aws', 'digitalocean']
     choice_list = '\n\t'.join(available_providers)
 
