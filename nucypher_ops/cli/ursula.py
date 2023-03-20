@@ -347,9 +347,9 @@ def recover_node_config(include_hosts, namespace, provider, aws_profile, login_n
         pre_config_metadata['aws-profile'] = aws_profile
         pre_config_metadata['aws-region'] = region
 
-        ip_address = comparator_address_data['_rest-host']
+        ip_address = include_hosts[0]
         instance_info = get_aws_instance_info(aws_profile, region, ip_address)
-        pre_config_metadata['keypair_path'] = '???'  #  TODO: ???
+        pre_config_metadata['keypair_path'] = ssh_key_path
         pre_config_metadata['keypair'] = instance_info['KeyName']
 
         vpc_id = instance_info['VpcId']
@@ -372,13 +372,17 @@ def recover_node_config(include_hosts, namespace, provider, aws_profile, login_n
         # must update 'nickname' and 'host_nickname' entries - aws nicknames are local
         instance_capture['nickname'].clear()
 
-    for ip_address, host_nickname in instance_capture['host_nickname']:
+    old_host_nicknames = instance_capture.pop('host_nickname')
+    instance_capture['host_nickname'] = []
+    for ip_address, host_nickname in old_host_nicknames:
         if provider == 'aws':
-            # update host_nickname and nickname for AWS11
+            # update nickname for AWS
             instance_info = get_aws_instance_info(aws_profile, region, ip_address)
             host_nickname = instance_info['Tags'][0]['Value']
             instance_capture['nickname'].append((ip_address, host_nickname))
 
+        # either update for AWS or leave the same for DigitalOcean
+        instance_capture['host_nickname'].append((ip_address, host_nickname))
         instances_dict[host_nickname] = {
             "publicaddress": ip_address,
             "installed": ["ursula"],

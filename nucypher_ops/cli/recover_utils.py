@@ -50,19 +50,28 @@ def add_deploy_attributes(instance_capture, include_hosts, ssh_key_path, login_n
 
 
 def get_aws_instance_info(aws_profile, aws_region, ip_address) -> dict:
+    import boto3
+
     # aws ec2 describe-instances --filters Name=ip-address,Values=<ip>
     aws_session = boto3.Session(profile_name=aws_profile, region_name=aws_region)
     ec2Client = aws_session.client('ec2')
-    instance_info = ec2Client.describe_instances(
+    result = ec2Client.describe_instances(
         Filters=[
-            {'Values': [ip_address], 'Name': 'ip-address'},
+            {
+                'Name': 'ip-address',
+                'Values': [ip_address]
+            }
         ]
-    )['Reservations']['Instances'][0]
+    )
+
+    instance_info = result['Reservations'][0]['Instances'][0]
 
     return instance_info
 
 
 def get_aws_internet_gateway_info(aws_profile, aws_region, vpc_id) -> dict:
+    import boto3
+
     # aws ec2 describe-internet-gateways --filters Name=attachment.vpc-id,Values=<VPCID>
     aws_session = boto3.Session(profile_name=aws_profile, region_name=aws_region)
     ec2Client = aws_session.client('ec2')
@@ -75,6 +84,8 @@ def get_aws_internet_gateway_info(aws_profile, aws_region, vpc_id) -> dict:
 
 
 def get_aws_route_table_info(aws_profile, aws_region, subnet_id) -> dict:
+    import boto3
+
     # aws ec2 describe-route-tables --filters Name=association.subnet-id,Values=<SUBNET_ID>
     aws_session = boto3.Session(profile_name=aws_profile, region_name=aws_region)
     ec2Client = aws_session.client('ec2')
