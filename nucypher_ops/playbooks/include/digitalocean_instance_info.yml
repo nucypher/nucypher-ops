@@ -10,6 +10,12 @@
     cmd: curl -s http://169.254.169.254/metadata/v1/region
   register: instance_region_output
 
+- name: "Get DO Public IP Address"
+  become: yes
+  shell:
+    cmd: curl -s http://169.254.169.254/metadata/v1/interfaces/public/0/ipv4/address
+  register: instance_ip_output
+
 - name: "Set DO Instance ID"
   set_fact:
     instance_id: "{{instance_id_output.stdout}}"
@@ -17,3 +23,7 @@
 - name: "Set DO Instance Region"
   set_fact:
     instance_region: "{{instance_region_output.stdout | upper}}"
+
+- name: "Set DO Instance Public IP Address"
+  set_fact:
+    instance_ip: "{{instance_ip_output.stdout}}"

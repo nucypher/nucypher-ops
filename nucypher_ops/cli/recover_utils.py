@@ -49,6 +49,30 @@ def add_deploy_attributes(instance_capture, include_hosts, ssh_key_path, login_n
         deploy_attrs.append(entry)
 
 
+def collect_aws_pre_config_data(aws_profile, region, ip_address, ssh_key_path) -> dict:
+    pre_config_metadata = {
+        'aws-profile': aws_profile, 'aws-region': region
+    }
+
+    instance_info = get_aws_instance_info(aws_profile, region, ip_address)
+    pre_config_metadata['keypair_path'] = ssh_key_path
+    pre_config_metadata['keypair'] = instance_info['KeyName']
+
+    vpc_id = instance_info['VpcId']
+    pre_config_metadata['Vpc'] = vpc_id
+    subnet_id = instance_info['SubnetId']
+    pre_config_metadata['Subnet'] = subnet_id
+    pre_config_metadata['SecurityGroup'] = instance_info['SecurityGroups'][0]['GroupId']
+
+    internet_gateway_info = get_aws_internet_gateway_info(aws_profile, region, vpc_id)
+    pre_config_metadata['InternetGateway'] = internet_gateway_info['InternetGatewayId']
+
+    route_table_info = get_aws_route_table_info(aws_profile, region, subnet_id)
+    pre_config_metadata['RouteTable'] = route_table_info['RouteTableId']
+
+    return pre_config_metadata
+
+
 def get_aws_instance_info(aws_profile, aws_region, ip_address) -> dict:
     import boto3
 

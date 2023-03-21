@@ -12,7 +12,7 @@ from nucypher_ops.cli.recover_utils import (
     add_deploy_attributes,
     get_aws_instance_info,
     get_aws_internet_gateway_info,
-    get_aws_route_table_info
+    get_aws_route_table_info, collect_aws_pre_config_data
 )
 from nucypher_ops.constants import DEFAULT_NAMESPACE, DEFAULT_NETWORK, PLAYBOOKS
 from nucypher_ops.ops.ansible_utils import AnsiblePlayBookResultsCollector
@@ -342,27 +342,8 @@ def recover_node_config(include_hosts, namespace, provider, aws_profile, login_n
     if provider == 'digitalocean':
         pre_config_metadata['digital-ocean-region'] = region
     else:
-        # provider is aws
-        # prompt for profile if necessary
-        pre_config_metadata['aws-profile'] = aws_profile
-        pre_config_metadata['aws-region'] = region
-
-        ip_address = include_hosts[0]
-        instance_info = get_aws_instance_info(aws_profile, region, ip_address)
-        pre_config_metadata['keypair_path'] = ssh_key_path
-        pre_config_metadata['keypair'] = instance_info['KeyName']
-
-        vpc_id = instance_info['VpcId']
-        pre_config_metadata['Vpc'] = vpc_id
-        subnet_id = instance_info['SubnetId']
-        pre_config_metadata['Subnet'] = subnet_id
-        pre_config_metadata['SecurityGroup'] = instance_info['SecurityGroups'][0]['GroupId']
-
-        internet_gateway_info = get_aws_internet_gateway_info(aws_profile, region, vpc_id)
-        pre_config_metadata['InternetGateway'] = internet_gateway_info['InternetGatewayId']
-
-        route_table_info = get_aws_route_table_info(aws_profile, region, subnet_id)
-        pre_config_metadata['RouteTable'] = route_table_info['RouteTableId']
+        aws_config_data = collect_aws_pre_config_data(aws_profile, region, include_hosts[0], ssh_key_path)
+        pre_config_metadata.update(aws_config_data)
 
     # set up pre-config instances
     node_names = []

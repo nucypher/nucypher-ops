@@ -6,7 +6,7 @@ from ansible.parsing.dataloader import DataLoader
 from ansible.vars.manager import VariableManager
 
 from nucypher_ops.cli.recover_utils import compare_and_remove_common_namespace_data, \
-    add_deploy_attributes
+    add_deploy_attributes, collect_aws_pre_config_data, get_aws_instance_info
 from nucypher_ops.constants import DEFAULT_NAMESPACE, DEFAULT_NETWORK, PLAYBOOKS
 from nucypher_ops.ops.ansible_utils import AnsiblePlayBookResultsCollector
 from nucypher_ops.ops.fleet_ops import CloudDeployers
@@ -190,14 +190,22 @@ def defund(amount, to_address, namespace, network, include_hosts):
 
 @cli.command('recover-node-config')
 @click.option('--include-host', 'include_hosts', help="specify hosts to recover", multiple=True, required=True, type=click.STRING)
-@click.option('--provider', help="The cloud provider host(s) are running on", multiple=False, required=True, type=click.Choice(['digitalocean']))  # TODO: only DO allowed for now
+@click.option('--provider', help="The cloud provider host(s) are running on", multiple=False, required=True, type=click.Choice(['digitalocean', 'aws']))
+@click.option('--aws-profile', help="The AWS profile name to use when interacting with remote node", required=False)
 @click.option('--namespace', help="Namespace for these operations", type=click.STRING, default=DEFAULT_NAMESPACE)
 @click.option('--network', help="Network that the node is running on", type=click.STRING, default=DEFAULT_NETWORK)
 @click.option('--login-name', help="The name username of a user with root privileges we can ssh as on the host.", default="root")
 @click.option('--key-path', 'ssh_key_path', help="The path to a keypair we will need to ssh into this host (default: ~/.ssh/id_rsa)", default="~/.ssh/id_rsa")
 @click.option('--ssh-port', help="The port this host's ssh daemon is listening on (default: 22)", default=22)
-def recover_node_config(include_hosts, provider, namespace, network, login_name, ssh_key_path, ssh_port):
+def recover_node_config(include_hosts, provider, aws_profile, namespace, network, login_name, ssh_key_path, ssh_port):
     """Regenerate previously lost/deleted node config(s)"""
+    if (provider == 'aws') ^ bool(aws_profile):
+        raise click.BadOptionUsage('--aws-profile', f"Expected both '--aws-profile <profile>' and '--provider aws' to be specified; got ({aws_profile}, {provider})")
+    if provider == 'aws' and login_name != 'ubuntu':
+        result = emitter.confirm(f"When using AWS the expectation is that the login name would be 'ubuntu' and not '{login_name}'. Are you sure you want to continue using '{login_name}'?")
+        if not result:
+            raise click.BadOptionUsage('--login-name', "Incorrect use of '--login-name'")
+
     playbook = Path(PLAYBOOKS).joinpath('recover_tbtcv2_ops_data.yml')
 
     instance_capture = {
@@ -226,6 +234,7 @@ def recover_node_config(include_hosts, provider, namespace, network, login_name,
         host.set_variable('default_user', login_name)
         host.set_variable('ansible_port', ssh_port)
         host.set_variable('ansible_connection', 'ssh')
+        host.set_variable('cloud_provider', provider)  # aws / digital ocean
     callback = AnsiblePlayBookResultsCollector(
         sock=emitter,
         return_results=instance_capture
@@ -260,8 +269,9 @@ def recover_node_config(include_hosts, provider, namespace, network, login_name,
     }
 
     # 3. Provider information
+    region = comparator_address_data['_instance-region']
     if provider == 'digitalocean':
-        pre_config_metadata['digital-ocean-region'] = comparator_address_data['_instance-region']
+        pre_config_metadata['digital-ocean-region'] = region
 
         # DO access token
         digital_access_token = emitter.prompt(
@@ -270,11 +280,30 @@ def recover_node_config(include_hosts, provider, namespace, network, login_name,
             raise AttributeError(
                 "Could not continue without Access Token")
         pre_config_metadata['digital-ocean-access-token'] = digital_access_token
+    else:
+        aws_config_data = collect_aws_pre_config_data(aws_profile, region, include_hosts[0],
+                                                      ssh_key_path)
+        pre_config_metadata.update(aws_config_data)
 
     # set up pre-config instances
     node_names = []
     instances_dict = {}
-    for ip_address, host_nickname in instance_capture['host_nickname']:
+
+    if provider == 'aws':
+        # must update 'nickname' and 'host_nickname' entries - aws nicknames are local
+        instance_capture['nickname'].clear()
+
+    old_host_nicknames = instance_capture.pop('host_nickname')
+    instance_capture['host_nickname'] = []
+    for ip_address, host_nickname in old_host_nicknames:
+        if provider == 'aws':
+            # update nickname for AWS
+            instance_info = get_aws_instance_info(aws_profile, region, ip_address)
+            host_nickname = instance_info['Tags'][0]['Value']
+            instance_capture['nickname'].append((ip_address, host_nickname))
+
+        # either update for AWS or leave the same for DigitalOcean
+        instance_capture['host_nickname'].append((ip_address, host_nickname))
         instances_dict[host_nickname] = {
             "publicaddress": ip_address,
             "installed": ["tbtcv2"],
