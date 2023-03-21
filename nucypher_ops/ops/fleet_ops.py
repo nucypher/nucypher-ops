@@ -1193,7 +1193,7 @@ class AWSNodeConfigurator(BaseCloudNodeConfigurator):
 
     URSULA_PORT = 9151
     PROMETHEUS_PORTS = [9101]
-    PROMETHEUS_PORT = PROMETHEUS_PORTS[0]
+    OTHER_INGRESS_PORTS = [(9601, 9601), (3919,3919)]
 
     provider_name = 'aws'
 
@@ -1206,7 +1206,7 @@ class AWSNodeConfigurator(BaseCloudNodeConfigurator):
         'eu-central-1': 'ami-0c960b947cbb2dd16',  # Frankfurt
         'ap-northeast-1': 'ami-09b86f9709b3c33d4',  # Tokyo
         'ap-southeast-1': 'ami-093da183b859d5a4b',  # Singapore
-        'sa-east-1': 'ami-090006f29ecb2d79a',
+        'sa-east-1': 'ami-090006f29ecb2d79a',  # Sao Paolo
         'eu-west-3': 'ami-0c3be2097e1270c89'  # Paris
     }
 
@@ -1398,28 +1398,32 @@ class AWSNodeConfigurator(BaseCloudNodeConfigurator):
 
         routetable.associate_with_subnet(SubnetId=self.config['Subnet'])
 
-        if not self.config.get('SecurityGroup'):
+        if self.config.get('SecurityGroup'):
+            self.emitter.echo(f"SecurityGroup already exists for {self.namespace_network}; skipping port ingress configuration")
+            return
+        else:
             securitygroupdata = self.ec2Client.create_security_group(
-                GroupName=f'Ursula-{self.namespace_network}', Description='ssh and Nucypher ports', VpcId=self.config['Vpc'])
+                GroupName=f'NuOps-{self.namespace_network}', Description='ssh and other ports', VpcId=self.config['Vpc'])
             self.config['SecurityGroup'] = sg_id = securitygroupdata['GroupId']
             self._write_config()
 
-        securitygroup = self.ec2Resource.SecurityGroup(
-            self.config['SecurityGroup'])
-        securitygroup.create_tags(Tags=self.aws_tags)
+            securitygroup = self.ec2Resource.SecurityGroup(
+                self.config['SecurityGroup'])
+            securitygroup.create_tags(Tags=self.aws_tags)
 
-        securitygroup.authorize_ingress(
-            CidrIp='0.0.0.0/0', IpProtocol='tcp', FromPort=22, ToPort=22)
-        # TODO: is it always 9151?  Does that matter? Should this be configurable?
-        securitygroup.authorize_ingress(
-            CidrIp='0.0.0.0/0', IpProtocol='tcp', FromPort=self.URSULA_PORT, ToPort=self.URSULA_PORT)
-        for port in self.PROMETHEUS_PORTS:
+            # TODO configure security group based on application (ursula or tbtc); for now all ports for ursula / tbtc are opened when security group was created
             securitygroup.authorize_ingress(
-                CidrIp='0.0.0.0/0', IpProtocol='tcp', FromPort=port, ToPort=port)
+                CidrIp='0.0.0.0/0', IpProtocol='tcp', FromPort=22, ToPort=22)
+            # TODO: is it always 9151?  Does that matter? Should this be configurable?
+            securitygroup.authorize_ingress(
+                CidrIp='0.0.0.0/0', IpProtocol='tcp', FromPort=self.URSULA_PORT, ToPort=self.URSULA_PORT)
+            for port in self.PROMETHEUS_PORTS:
+                securitygroup.authorize_ingress(
+                    CidrIp='0.0.0.0/0', IpProtocol='tcp', FromPort=port, ToPort=port)
 
-        for (source, dest) in self.OTHER_INGRESS_PORTS:
-            securitygroup.authorize_ingress(
-                CidrIp='0.0.0.0/0', IpProtocol='tcp', FromPort=source, ToPort=dest)
+            for (source, dest) in self.OTHER_INGRESS_PORTS:
+                securitygroup.authorize_ingress(
+                    CidrIp='0.0.0.0/0', IpProtocol='tcp', FromPort=source, ToPort=dest)
 
     def _do_setup_for_instance_creation(self):
         if not getattr(self, 'profile', None):
@@ -1557,7 +1561,7 @@ class AWSNodeConfigurator(BaseCloudNodeConfigurator):
         self.emitter.echo("\twaiting for instance to come online...")
         instance.wait_until_running()
         instance.load()
-        node_data['publicaddress'] = instance.public_dns_name
+        node_data['publicaddress'] = instance.public_ip_address
         node_data['provider_deploy_attrs'] = self._provider_deploy_attrs
 
         return node_data
@@ -1770,10 +1774,6 @@ class tBTCv2Deployer(GenericDeployer):
     @property
     def inventory_path(self):
         return str(Path(DEFAULT_CONFIG_ROOT).joinpath(NODE_CONFIG_STORAGE_KEY, f'{self.namespace_network}.tbtcv2_ansible_inventory.yml'))
-
-    @property
-    def instance_size(self):
-        return self.kwargs.get('instance_type') or "s-2vcpu-2gb"
 
     @property
     def backup_directory(self):
