@@ -1193,16 +1193,18 @@ class AWSNodeConfigurator(BaseCloudNodeConfigurator):
 
     URSULA_PORT = 9151
     PROMETHEUS_PORTS = [9101]
-    OTHER_INGRESS_PORTS = [(9601, 9601), (3919,3919)]
+    OTHER_INGRESS_PORTS = [(9601, 9601), (3919, 3919)]
 
     provider_name = 'aws'
 
-    # TODO: this probably needs to be region specific...
+    # Ubuntu AWS EC2 cloud images by region - https://cloud-images.ubuntu.com/locator/ec2/
+    # TODO some of the other regions have deprecated ami instances - should update those
     EC2_AMI_LOOKUP = {
         'us-west-2': 'ami-09dd2e08d601bff67',  # Oregon
         'us-west-1': 'ami-021809d9177640a20',  # California
         'us-east-2': 'ami-07efac79022b86107',  # Ohio
-        'us-east-1': 'ami-0dba2cb6798deb6d8',  # Virginia
+        'us-east-1': 'ami-0dba2cb6798deb6d8',  # N. Virginia
+        'ca-central-1': 'ami-092ae90a292e01141',  # Canada (Central)
         'eu-central-1': 'ami-0c960b947cbb2dd16',  # Frankfurt
         'ap-northeast-1': 'ami-09b86f9709b3c33d4',  # Tokyo
         'ap-southeast-1': 'ami-093da183b859d5a4b',  # Singapore
@@ -1238,8 +1240,17 @@ class AWSNodeConfigurator(BaseCloudNodeConfigurator):
             )
 
         self.emitter.echo(f'using profile: {self.profile}')
-        self.AWS_REGION = self.config.get(
-            'aws-region') or os.environ.get('AWS_DEFAULT_REGION')
+
+        self.AWS_REGION = self.config.get('aws-region')
+        if not self.AWS_REGION:
+            self.AWS_REGION = os.environ.get('AWS_DEFAULT_REGION')
+            if self.AWS_REGION:
+                use_region = self.emitter.prompt(
+                    f"No explicit region value defined; using region value from 'AWS_DEFAULT_REGION' environment variable: {self.AWS_REGION}.  Continue? (type 'yes')") == "yes"
+                if not use_region:
+                    # prompt for region
+                    self.AWS_REGION = None
+
         if not self.AWS_REGION:
             # a region must be set for execution; any region will do
             session = boto3.Session(profile_name=self.profile)

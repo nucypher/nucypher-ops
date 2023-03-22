@@ -215,6 +215,20 @@ def backup(namespace, network, include_host):
     deployer.backup_remote_data(node_names=hostnames)
 
 
+@cli.command('stop')
+@click.option('--namespace', help="Namespace for these operations.  Used to address hosts and data locally and name hosts on cloud platforms.", type=click.STRING, default=DEFAULT_NAMESPACE)
+@click.option('--network', help="The Nucypher network name these hosts are running on.", type=click.STRING, default=DEFAULT_NETWORK)
+@click.option('--include-host', help="The nickname of the host to backup", multiple=False, type=click.STRING, required=False)
+def stop(namespace, network, include_host):
+    """Stop worker running on an existing host"""
+    deployer = CloudDeployers.get_deployer('generic')(emitter, namespace=namespace, network=network)
+    if include_host:
+        hostnames = [include_host]
+    else:
+        hostnames = deployer.config['instances'].keys()
+
+    deployer.stop_worker_process(node_names=hostnames)
+
 @cli.command('recover-node-config')
 @click.option('--include-host', 'include_hosts', help="specify hosts to recover", multiple=True, required=True, type=click.STRING)
 @click.option('--provider', help="The cloud provider host(s) are running on", multiple=False, required=True, type=click.Choice(['digitalocean', 'aws']))
