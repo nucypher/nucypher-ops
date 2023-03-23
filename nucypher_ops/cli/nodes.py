@@ -148,6 +148,39 @@ def list(network, namespace, all, as_json, pretty):
         print(tabulate(human_data, headers=headers, tablefmt='psql'))
 
 
+@cli.command('node-info')
+@click.option('--network', help="The network whose hosts you want to see.", type=click.STRING, required=True)
+@click.option('--namespace', help="The network whose hosts you want to see.", type=click.STRING, required=True)
+@click.option('--include-host', 'include_host', help="The node to print information for", type=click.STRING, required=True)
+@click.option('--json', 'as_json', help="Output information as json", default=False, is_flag=True)
+def node_info(network, namespace, include_host, as_json):
+    """Prints configuration information about a specific node"""
+
+    deployer = CloudDeployers.get_deployer('generic')(emitter, network=network, namespace=namespace, read_only=True)
+
+    human_data = []
+    headers = ['Property', 'Value']
+
+    host_data = deployer.get_host_by_name(host_name=include_host)
+    if not host_data:
+        raise ValueError(f"Host information for '{include_host}' could not be found in network '{network}' and namespace '{namespace}'")
+
+    if as_json:
+        print(json.dumps(host_data, indent=4))
+        return
+
+    host_header = f"Host: {host_data['host_nickname']}"
+    emitter.echo("*" * len(host_header))
+    emitter.echo(f"{host_header}")
+    emitter.echo("*" * len(host_header))
+    for k, v in host_data.items():
+        row = [k, str(v)]
+        human_data.append(row)
+
+    headers = [*headers]
+    print(tabulate(human_data, headers=headers, tablefmt='psql', maxcolwidths=[None, 120]))
+
+
 @cli.command('destroy')
 @click.option('--cloudprovider', help="aws or digitalocean")
 @click.option('--namespace', help="Namespace for these operations.  Used to address hosts and data locally and name hosts on cloud platforms.", type=click.STRING, default=DEFAULT_NAMESPACE)
@@ -196,6 +229,7 @@ def remove(namespace, network, include_hosts):
     emitter.echo("\ntype 'y' to continue")
     if click.getchar(echo=False) == 'y':
         deployer.remove_resources(hostnames)
+
 
 @cli.command('config')
 @click.option('--namespace', help="Namespace for these operations.  Used to address hosts and data locally and name hosts on cloud platforms.", type=click.STRING, default=DEFAULT_NAMESPACE)
