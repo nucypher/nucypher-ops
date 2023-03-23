@@ -1208,18 +1208,22 @@ class AWSNodeConfigurator(BaseCloudNodeConfigurator):
     provider_name = 'aws'
 
     # Ubuntu AWS EC2 cloud images by region - https://cloud-images.ubuntu.com/locator/ec2/
-    # TODO some of the other regions have deprecated ami instances - should update those
     EC2_AMI_LOOKUP = {
-        'us-west-2': 'ami-09dd2e08d601bff67',  # Oregon
-        'us-west-1': 'ami-021809d9177640a20',  # California
-        'us-east-2': 'ami-07efac79022b86107',  # Ohio
-        'us-east-1': 'ami-0dba2cb6798deb6d8',  # N. Virginia
-        'ca-central-1': 'ami-092ae90a292e01141',  # Canada (Central)
-        'eu-central-1': 'ami-0c960b947cbb2dd16',  # Frankfurt
-        'ap-northeast-1': 'ami-09b86f9709b3c33d4',  # Tokyo
-        'ap-southeast-1': 'ami-093da183b859d5a4b',  # Singapore
-        'sa-east-1': 'ami-090006f29ecb2d79a',  # Sao Paolo
-        'eu-west-3': 'ami-0c3be2097e1270c89'  # Paris
+        'us-west-2': 'ami-07f3835078238cf5f',  # Oregon (previous 'ami-09dd2e08d601bff67')
+        'us-west-1': 'ami-060810abef0876bf9',  # California (previous 'ami-021809d9177640a20')
+        'us-east-2': 'ami-05e2e289878082d62',  # Ohio (previous 'ami-07efac79022b86107')
+        'us-east-1': 'ami-07a72d328538fc075',  # N. Virginia (previous 'ami-0dba2cb6798deb6d8')
+        'ca-central-1': 'ami-00f9d48672cdfb082',  # Canada (previous 'ami-092ae90a292e01141')
+        'eu-west-1': 'ami-013ee89145538ca58',  # Ireland
+        'eu-west-2': 'ami-04cac1713d99a8a58',  # London
+        'eu-west-3': 'ami-036d1e148d3009384',  # Paris (previous 'ami-0c3be2097e1270c89')
+        'eu-north-1': 'ami-0c93e624d16d7d54b',  # Stockholm
+        'eu-central-1': 'ami-08868ffb88a12d582',  # Frankfurt (previous 'ami-0c960b947cbb2dd16')
+        'ap-northeast-1': 'ami-02a48cc8e65575754',  # Tokyo (previous 'ami-09b86f9709b3c33d4')
+        'ap-northeast-2': 'ami-0be886bd314f8bd39',  # Seoul
+        'ap-southeast-1': 'ami-09e450813d49ccb3d',  # Singapore (previous 'ami-093da183b859d5a4b')
+        'ap-southeast-2': 'ami-02884b059f16723fb',   # Sydney
+        'sa-east-1': 'ami-0ba6b2f8309cc9e14'  # Sao Paolo (previous 'ami-090006f29ecb2d79a')
     }
 
     preferred_platform = 'ubuntu-focal'  # unused
