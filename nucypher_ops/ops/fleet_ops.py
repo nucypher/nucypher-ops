@@ -1044,8 +1044,18 @@ class DigitalOceanConfigurator(BaseCloudNodeConfigurator):
             'BLR1'
         ]
 
-        if region := self.kwargs.get('region') or os.environ.get('DIGITALOCEAN_REGION') or self.config.get(
-                'digital-ocean-region'):
+        region = self.kwargs.get('region') or self.config.get('digital-ocean-region')
+        if not region:
+            region = os.environ.get('DIGITALOCEAN_REGION')
+            if region:
+                # if using env variable ensure that it is what the user wants
+                use_region = self.emitter.prompt(
+                    f"No explicit region value defined; using region value from 'DIGITALOCEAN_REGION' environment variable: {region}. Continue? (type 'yes')") == "yes"
+                if not use_region:
+                    # reset region so that random one is used instead
+                    region = None
+
+        if region:
             self.emitter.echo(f'Using Digital Ocean region: {region}')
             if not region in regions:
                 raise AttributeError(

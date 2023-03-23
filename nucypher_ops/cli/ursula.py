@@ -111,6 +111,7 @@ def status(fast, namespace, network, include_hosts):
 
     deployer.get_worker_status(hostnames, fast=fast)
 
+
 @cli.command('fund')
 @click.option('--amount', help="The amount to fund each node.  Default is .003", type=click.FLOAT, default=.003)
 @click.option('--namespace', help="Namespace for these operations.  Used to address hosts and data locally and name hosts on cloud platforms.", type=click.STRING, default=DEFAULT_NAMESPACE)
@@ -153,7 +154,8 @@ def fund(amount, namespace, network, include_hosts):
         return
 
     deployer.fund_nodes(wallet, hostnames, amount)
-    
+
+
 @cli.command('defund')
 @click.option('--amount', help="The amount to defund.  Default is the entire balance of the node's wallet.", type=click.FLOAT, default=None)
 @click.option('--to-address', help="To which ETH address are you sending the proceeds?", required=True)
@@ -228,6 +230,7 @@ def stop(namespace, network, include_host):
         hostnames = deployer.config['instances'].keys()
 
     deployer.stop_worker_process(node_names=hostnames)
+
 
 @cli.command('recover-node-config')
 @click.option('--include-host', 'include_hosts', help="specify hosts to recover", multiple=True, required=True, type=click.STRING)
