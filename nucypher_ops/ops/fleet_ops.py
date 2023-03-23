@@ -1266,9 +1266,8 @@ class AWSNodeConfigurator(BaseCloudNodeConfigurator):
                     self.AWS_REGION = None
 
         if not self.AWS_REGION:
-            # a region must be set for execution; any region will do
             session = boto3.Session(profile_name=self.profile)
-            ec2 = session.client('ec2', region_name='us-east-1')
+            ec2 = session.client('ec2')
             available_regions = [r['RegionName']
                                  for r in ec2.describe_regions()['Regions']]
             region_choice_list = '\n\t'.join(available_regions)
