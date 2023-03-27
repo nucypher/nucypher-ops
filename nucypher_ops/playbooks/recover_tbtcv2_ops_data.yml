@@ -63,7 +63,7 @@
              docker_image:           {{running_docker_image.stdout}}\n
              operator address:       {{operator_address.stdout}}\n
              nickname:               {{tbtcv2_hostname.stdout}}\n
-             rest url:               https://{{instance_ip.stdout}}:9601\n
+             rest url:               https://{{instance_ip}}:9601\n
              _ssh-fingerprint:       {{ssh_fingerprint.stdout}}\n
              _instance-region:       {{instance_region}}\n
              _operator-password:     {{operator_password.stdout}}\n
