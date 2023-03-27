@@ -1804,7 +1804,14 @@ class tBTCv2Deployer(GenericDeployer):
 
     def stage_nodes(self, *args, **kwargs):
         self.playbook_name = "stage_tbtcv2.yml"
-        return super().deploy(*args, **kwargs)
+        try:
+            self.output_capture = {
+                'operator address': [],
+            }
+            return super().deploy(*args, **kwargs)
+        finally:
+            # only capture output during `tbtcv2 stage`
+            self.output_capture = {}
 
     def run_nodes(self, *args, **kwargs):
         self.playbook_name = "run_tbtcv2.yml"
