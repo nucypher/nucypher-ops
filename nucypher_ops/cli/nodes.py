@@ -1,8 +1,11 @@
+import json
+
+import click
+from tabulate import tabulate
+
 from nucypher_ops.constants import DEFAULT_NAMESPACE, DEFAULT_NETWORK, NETWORKS
 from nucypher_ops.ops.fleet_ops import CloudDeployers
-import os
-import click
-import json
+
 emitter = click
 
 
@@ -100,11 +103,12 @@ def copy(from_path, to_network, to_namespace):
 
 
 @cli.command('list')
+@click.option('--pretty', help="Human readable output", default=False, is_flag=True)
 @click.option('--json', 'as_json', help="output json", default=False, is_flag=True)
 @click.option('--all', help="list all nodes under all networks and namespaces", default=False, is_flag=True)
 @click.option('--network', help="The network whose hosts you want to see.", type=click.STRING, default=DEFAULT_NETWORK)
 @click.option('--namespace', help="The network whose hosts you want to see.", type=click.STRING, default=DEFAULT_NAMESPACE)
-def list(network, namespace, all, as_json):
+def list(network, namespace, all, as_json, pretty):
     """Prints local config info about known hosts"""
 
     if all:
@@ -116,7 +120,17 @@ def list(network, namespace, all, as_json):
     deployers = [
         CloudDeployers.get_deployer('generic')(emitter, network=network, pre_config={"namespace": namespace}, read_only=True)
         for network in networks]
-    
+
+    human_data = []
+    headers = [
+        'host_nickname',
+        # 'publicaddress',
+        'rest url',
+        'operator address',
+        'provider',
+        'docker_image',
+    ]
+
     for deployer in deployers:
         if not as_json:
             emitter.echo(f'{deployer.network}')
@@ -127,7 +141,13 @@ def list(network, namespace, all, as_json):
                 if not as_json:
                     emitter.echo(f'\t\t{name}')
                 if as_json:
-                    print (json.dumps(data, indent=4))
+                    print(json.dumps(data, indent=4))
+                elif pretty:
+                    entry = [ns, *(str(data.get(field, '?')) for field in headers)]
+                    human_data.append(entry)
+    if pretty:
+        headers = ['namespace', *headers]
+        print(tabulate(human_data, headers=headers, tablefmt='psql'))
 
 
 @cli.command('destroy')
