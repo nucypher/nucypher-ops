@@ -5,3 +5,4 @@ mako
 requests
 maya
 appdirs
+boto3

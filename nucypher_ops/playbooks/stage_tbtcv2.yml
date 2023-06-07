@@ -6,3 +6,4 @@
 - import_playbook: include/setup_docker.yml
 - import_playbook: include/install_geth.yml
 - import_playbook: include/init_operator.yml
+- import_playbook: include/get_operator_address.yml

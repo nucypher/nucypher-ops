@@ -1,0 +1,70 @@
+- name: "Obtain tBTCv2 Ops Data from Running Service"
+  hosts: "{{ play_hosts }}"
+  remote_user: "{{default_user}}"
+  gather_facts: no
+  any_errors_fatal: true
+
+  tasks:
+    - include_tasks: include/aws_instance_info.yml
+      when: cloud_provider == "aws"
+
+    - include_tasks: include/digitalocean_instance_info.yml
+      when: cloud_provider == "digitalocean"
+
+    - name: "Get Hostname"
+      shell:
+        cmd: hostname
+      register: tbtcv2_hostname
+
+    - name: "Get tBTCv2 Container Name"
+      become: yes
+      shell:
+        cmd: sudo docker ps --no-trunc | grep tbtcv2 | cut -f 1 -d " "
+      register: tbtcv2_container_name
+
+    - name: "ETH Provider"
+      become: yes
+      shell:
+        cmd: sudo docker inspect {{tbtcv2_container_name.stdout}} --format \{\{range\ .Args\}\}\{\{println\ .\}\}\{\{end\}\} | grep "wss"
+      register: tbtcv2_eth_provider
+
+    - name: "Get Docker Image"
+      become: yes
+      shell:
+        cmd: sudo docker inspect {{tbtcv2_container_name.stdout}} --format \{\{.Config.Image\}\}
+      register: running_docker_image
+
+    - name: "Get Operator Address"
+      become: yes
+      shell:
+        cmd: sudo more /home/tbtcv2/geth/.ethereum/mainnet/account.txt
+      register: operator_address
+
+    - name: "Operator Password"
+      become: yes
+      shell:
+        cmd: sudo docker inspect {{tbtcv2_container_name.stdout}} --format \{\{range\ .Config.Env\}\}\{\{println\ .\}\}\{\{end\}\} | grep "KEEP_ETHEREUM_PASSWORD" | cut -d "=" -f 2-
+      register: operator_password
+
+    - name: "Get SSH Fingerprint"
+      become: yes
+      shell:
+        cmd: ssh-keygen -l -f ~/.ssh/authorized_keys -E md5 | cut -d " " -f 2 | cut -d ":" -f 2-
+      register: ssh_fingerprint
+
+    - name: "Print Ursula Ops Status"
+      ignore_errors: no
+      debug:
+        msg:
+            " InstanceId:             {{instance_id}}\n
+             publicaddress:          {{instance_ip}}\n
+             host_nickname:          {{tbtcv2_hostname.stdout}}\n
+             eth_provider:           {{tbtcv2_eth_provider.stdout}}\n
+             docker_image:           {{running_docker_image.stdout}}\n
+             operator address:       {{operator_address.stdout}}\n
+             nickname:               {{tbtcv2_hostname.stdout}}\n
+             rest url:               https://{{instance_ip}}:9601\n
+             _ssh-fingerprint:       {{ssh_fingerprint.stdout}}\n
+             _instance-region:       {{instance_region}}\n
+             _operator-password:     {{operator_password.stdout}}\n
+          "

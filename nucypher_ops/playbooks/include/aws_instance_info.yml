@@ -1,0 +1,21 @@
+- name: "Get AWS Identity Information"
+  shell:
+    cmd: wget -q -O - http://169.254.169.254/latest/dynamic/instance-identity/document
+  register: aws_identity_information
+
+- name: "Get AWS Instance ID"
+  set_fact:
+    instance_id: "{{ (aws_identity_information.stdout | from_json).instanceId }}"
+
+- name: "Get AWS Instance Region"
+  set_fact:
+    instance_region: "{{ (aws_identity_information.stdout | from_json).region | lower }}"
+
+- name: "Get AWS Instance Public IP Address"
+  shell:
+    cmd: curl http://169.254.169.254/latest/meta-data/public-ipv4
+  register: instance_ip_output
+
+- name: "Set AWS Instance Public IP Address"
+  set_fact:
+    instance_ip: "{{instance_ip_output.stdout}}"

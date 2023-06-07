@@ -121,7 +121,7 @@
 
     - name: "Backup operator ethereum keys locally to: {{deployer_config_path}}/remote_operator_backups/"
       become: yes
-      become_user: nucypher
+      become_user: "{{ node_user }}"
       fetch:
         src: "{{item.path}}"
         dest: "{{deployer_config_path}}/remote_operator_backups/"

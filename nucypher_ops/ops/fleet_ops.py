@@ -1,32 +1,27 @@
 import copy
 import json
-import random
-
-import pkgutil
-
-import maya
 import os
-import requests
+import random
 import time
 import warnings
+from base64 import b64encode, b64decode
+from pathlib import Path
+
+import maya
+import requests
 from ansible.executor.playbook_executor import PlaybookExecutor
 from ansible.inventory.manager import InventoryManager
 from ansible.parsing.dataloader import DataLoader
-
 from ansible.vars.manager import VariableManager
-from base64 import b64encode, b64decode
 from mako.template import Template
-from pathlib import Path
-
-from nucypher_ops.ops.ansible_utils import AnsiblePlayBookResultsCollector
 
 from nucypher_ops.constants import (
     CHAIN_NAMES, NETWORKS, DEFAULT_CONFIG_ROOT, PLAYBOOKS, TEMPLATES,
     NUCYPHER_ENVVAR_KEYSTORE_PASSWORD,
     NUCYPHER_ENVVAR_OPERATOR_ETHEREUM_PASSWORD, PAYMENT_NETWORKS, PAYMENT_NETWORK_CHOICES
 )
-
 from nucypher_ops.ops import keygen
+from nucypher_ops.ops.ansible_utils import AnsiblePlayBookResultsCollector
 from nucypher_ops.ops.contracts import NuCypherContractRegistry
 
 try:
@@ -92,6 +87,7 @@ class BaseCloudNodeConfigurator:
     def __init__(self,  # TODO: Add type annotations
                  emitter,
                  seed_network=None,
+                 recovery_mode = False,
                  pre_config=False,
                  network=None,
                  namespace=None,
@@ -111,13 +107,14 @@ class BaseCloudNodeConfigurator:
         self.resource_name = resource_name
         self.kwargs = kwargs
         self.contract_registry = None
+        self.recovery_mode = recovery_mode
 
         self.envvars = envvars or []
         if self.envvars:
-            if not all([(len(v.split('=')) == 2) for v in self.envvars]):
+            if not all([(len(v.split('=', maxsplit=1)) == 2) for v in self.envvars]):
                 raise ValueError(
                     "Improperly specified environment variables: --env variables must be specified in pairs as `<name>=<value>`")
-            self.envvars = [v.split('=') for v in (self.envvars)]
+            self.envvars = [v.split('=', maxsplit=1) for v in (self.envvars)]
 
         cliargs = cliargs or []
         self.cliargs = []
@@ -133,9 +130,11 @@ class BaseCloudNodeConfigurator:
 
         self.created_new_nodes = False
 
-        if pre_config:
+        if pre_config or recovery_mode:
             self.config = pre_config
             self.namespace_network = self.config.get('namespace')
+            if recovery_mode:
+                self.namespace_network = f'{self.network}-{self.namespace}'
             return
 
         # where we save our state data so we can remember the resources we created for future use
@@ -207,7 +206,6 @@ class BaseCloudNodeConfigurator:
         return 'nucypher'
 
     def _write_config(self):
-
         config_dir = self.config_path.parent
         config_dir.mkdir(parents=True, exist_ok=True)
 
@@ -284,7 +282,7 @@ class BaseCloudNodeConfigurator:
                  value in self.config['instances'].items() if key in node_names}
         if not nodes:
             raise KeyError(
-                f"No hosts matched the supplied names: {node_names}.  Try `nucypher cloudworkers list-hosts` or create new hosts with `nucypher-ops nodes create`")
+                f"No hosts matched the supplied host names: {node_names}; ensure `host-nickname` is used.  Try `nucypher-ops nodes list --all` to view hosts or create new hosts with `nucypher-ops nodes create`")
 
         defaults = self.default_config()
         if generate_keymaterial or kwargs.get('migrate_nucypher') or kwargs.get('init'):
@@ -404,7 +402,6 @@ class BaseCloudNodeConfigurator:
                         self.config['instances'][node_name][k] = input_values[k]
 
                 self._write_config()
-        # print(json.dumps(self.config['instances'], indent=4))
 
     def deploy_nucypher_on_existing_nodes(self, node_names, migrate_nucypher=False, init=False, **kwargs):
 
@@ -679,6 +676,39 @@ class BaseCloudNodeConfigurator:
     def _destroy_resources(self, *args, **kwargs):
         raise NotImplementedError
 
+    def recover_instance_config(self, instance_data, config_filepath=None):
+        if not self.recovery_mode:
+            raise ValueError("Don't call function unless in recovery mode")
+
+        if not config_filepath:
+            config_filepath = self.network_config_path / self.namespace / self.config_filename
+        self.config_path = config_filepath
+        self.config_dir = self.config_path.parent
+        instances_by_public_address = {}
+        for k, data in instance_data.items():
+            for instance_address, value in data:
+                instance_dict = instances_by_public_address.get(instance_address, {})
+                if not instance_dict:
+                    instances_by_public_address[instance_address] = instance_dict
+                instance_dict[k] = value
+
+        # index instance using host_nickname, and not publicaddress
+        for instance_address, instance_values in instances_by_public_address.items():
+            config_instances_dict = self.config.get("instances", {})
+            if not instance_data:
+                self.config["instances"] = config_instances_dict
+
+            host_nickname = instance_values["host_nickname"]
+            for k, v in instance_values.items():
+                instance_dict = config_instances_dict.get(host_nickname, {})
+                if not instance_dict:
+                    config_instances_dict[host_nickname] = instance_dict
+
+                instance_dict[k] = v
+
+        self._configure_provider_params()  # need provider access token
+        self._write_config()
+
     def update_captured_instance_data(self, results):
         instances_by_public_address = {
             d['publicaddress']: d for d in self.config['instances'].values()}
@@ -804,7 +834,7 @@ class BaseCloudNodeConfigurator:
             if not self.config['instances'][instance].get('index'):
                 self.config['instances'][instance]['index'] = index
             if instance.runtime_envvars.get('NUCYPHER_WORKER_ETH_PASSWORD'):
-                instance.runtime_envvars['NUCYPHER_OPERATOR_ETHEREUM_PASSWORD'] = instance.runtime_envvars.get(
+                instance.runtime_envvars['NUCYPHER_OPERATOR_ETH_PASSWORD'] = instance.runtime_envvars.get(
                     'NUCYPHER_WORKER_ETH_PASSWORD')
                 del instance.runtime_envvars['NUCYPHER_WORKER_ETH_PASSWORD']
 
@@ -1014,8 +1044,18 @@ class DigitalOceanConfigurator(BaseCloudNodeConfigurator):
             'BLR1'
         ]
 
-        if region := self.kwargs.get('region') or os.environ.get('DIGITALOCEAN_REGION') or self.config.get(
-                'digital-ocean-region'):
+        region = self.kwargs.get('region') or self.config.get('digital-ocean-region')
+        if not region:
+            region = os.environ.get('DIGITALOCEAN_REGION')
+            if region:
+                # if using env variable ensure that it is what the user wants
+                use_region = self.emitter.prompt(
+                    f"No explicit region value defined; using region value from 'DIGITALOCEAN_REGION' environment variable: {region}. Continue? (type 'yes')") == "yes"
+                if not use_region:
+                    # reset region so that random one is used instead
+                    region = None
+
+        if region:
             self.emitter.echo(f'Using Digital Ocean region: {region}')
             if not region in regions:
                 raise AttributeError(
@@ -1163,21 +1203,27 @@ class AWSNodeConfigurator(BaseCloudNodeConfigurator):
 
     URSULA_PORT = 9151
     PROMETHEUS_PORTS = [9101]
-    PROMETHEUS_PORT = PROMETHEUS_PORTS[0]
+    OTHER_INGRESS_PORTS = [(9601, 9601), (3919, 3919)]
 
     provider_name = 'aws'
 
-    # TODO: this probably needs to be region specific...
+    # Ubuntu AWS EC2 cloud images by region - https://cloud-images.ubuntu.com/locator/ec2/
     EC2_AMI_LOOKUP = {
-        'us-west-2': 'ami-09dd2e08d601bff67',  # Oregon
-        'us-west-1': 'ami-021809d9177640a20',  # California
-        'us-east-2': 'ami-07efac79022b86107',  # Ohio
-        'us-east-1': 'ami-0dba2cb6798deb6d8',  # Virginia
-        'eu-central-1': 'ami-0c960b947cbb2dd16',  # Frankfurt
-        'ap-northeast-1': 'ami-09b86f9709b3c33d4',  # Tokyo
-        'ap-southeast-1': 'ami-093da183b859d5a4b',  # Singapore
-        'sa-east-1': 'ami-090006f29ecb2d79a',
-        'eu-west-3': 'ami-0c3be2097e1270c89'  # Paris
+        'us-west-2': 'ami-07f3835078238cf5f',  # Oregon (previous 'ami-09dd2e08d601bff67')
+        'us-west-1': 'ami-060810abef0876bf9',  # California (previous 'ami-021809d9177640a20')
+        'us-east-2': 'ami-05e2e289878082d62',  # Ohio (previous 'ami-07efac79022b86107')
+        'us-east-1': 'ami-07a72d328538fc075',  # N. Virginia (previous 'ami-0dba2cb6798deb6d8')
+        'ca-central-1': 'ami-00f9d48672cdfb082',  # Canada (previous 'ami-092ae90a292e01141')
+        'eu-west-1': 'ami-013ee89145538ca58',  # Ireland
+        'eu-west-2': 'ami-04cac1713d99a8a58',  # London
+        'eu-west-3': 'ami-036d1e148d3009384',  # Paris (previous 'ami-0c3be2097e1270c89')
+        'eu-north-1': 'ami-0c93e624d16d7d54b',  # Stockholm
+        'eu-central-1': 'ami-08868ffb88a12d582',  # Frankfurt (previous 'ami-0c960b947cbb2dd16')
+        'ap-northeast-1': 'ami-02a48cc8e65575754',  # Tokyo (previous 'ami-09b86f9709b3c33d4')
+        'ap-northeast-2': 'ami-0be886bd314f8bd39',  # Seoul
+        'ap-southeast-1': 'ami-09e450813d49ccb3d',  # Singapore (previous 'ami-093da183b859d5a4b')
+        'ap-southeast-2': 'ami-02884b059f16723fb',   # Sydney
+        'sa-east-1': 'ami-0ba6b2f8309cc9e14'  # Sao Paolo (previous 'ami-090006f29ecb2d79a')
     }
 
     preferred_platform = 'ubuntu-focal'  # unused
@@ -1208,13 +1254,20 @@ class AWSNodeConfigurator(BaseCloudNodeConfigurator):
             )
 
         self.emitter.echo(f'using profile: {self.profile}')
-        self.session = boto3.Session(profile_name=self.profile)
 
-        ec2 = self.session.client('ec2')
-
-        self.AWS_REGION = self.config.get(
-            'aws-region') or os.environ.get('AWS_DEFAULT_REGION')
+        self.AWS_REGION = self.config.get('aws-region')
         if not self.AWS_REGION:
+            self.AWS_REGION = os.environ.get('AWS_DEFAULT_REGION')
+            if self.AWS_REGION:
+                use_region = self.emitter.prompt(
+                    f"No explicit region value defined; using region value from 'AWS_DEFAULT_REGION' environment variable: {self.AWS_REGION}.  Continue? (type 'yes')") == "yes"
+                if not use_region:
+                    # prompt for region
+                    self.AWS_REGION = None
+
+        if not self.AWS_REGION:
+            session = boto3.Session(profile_name=self.profile)
+            ec2 = session.client('ec2')
             available_regions = [r['RegionName']
                                  for r in ec2.describe_regions()['Regions']]
             region_choice_list = '\n\t'.join(available_regions)
@@ -1224,7 +1277,7 @@ class AWSNodeConfigurator(BaseCloudNodeConfigurator):
                 show_choices=False
             )
 
-        # re-init the session with a region specified
+        # init the session with a region specified
         self.session = boto3.Session(
             profile_name=self.profile, region_name=self.AWS_REGION)
         self.ec2Client = ec2 = self.session.client('ec2')
@@ -1368,28 +1421,32 @@ class AWSNodeConfigurator(BaseCloudNodeConfigurator):
 
         routetable.associate_with_subnet(SubnetId=self.config['Subnet'])
 
-        if not self.config.get('SecurityGroup'):
+        if self.config.get('SecurityGroup'):
+            self.emitter.echo(f"SecurityGroup already exists for {self.namespace_network}; skipping port ingress configuration")
+            return
+        else:
             securitygroupdata = self.ec2Client.create_security_group(
-                GroupName=f'Ursula-{self.namespace_network}', Description='ssh and Nucypher ports', VpcId=self.config['Vpc'])
+                GroupName=f'NuOps-{self.namespace_network}', Description='ssh and other ports', VpcId=self.config['Vpc'])
             self.config['SecurityGroup'] = sg_id = securitygroupdata['GroupId']
             self._write_config()
 
-        securitygroup = self.ec2Resource.SecurityGroup(
-            self.config['SecurityGroup'])
-        securitygroup.create_tags(Tags=self.aws_tags)
+            securitygroup = self.ec2Resource.SecurityGroup(
+                self.config['SecurityGroup'])
+            securitygroup.create_tags(Tags=self.aws_tags)
 
-        securitygroup.authorize_ingress(
-            CidrIp='0.0.0.0/0', IpProtocol='tcp', FromPort=22, ToPort=22)
-        # TODO: is it always 9151?  Does that matter? Should this be configurable?
-        securitygroup.authorize_ingress(
-            CidrIp='0.0.0.0/0', IpProtocol='tcp', FromPort=self.URSULA_PORT, ToPort=self.URSULA_PORT)
-        for port in self.PROMETHEUS_PORTS:
+            # TODO configure security group based on application (ursula or tbtc); for now all ports for ursula / tbtc are opened when security group was created
             securitygroup.authorize_ingress(
-                CidrIp='0.0.0.0/0', IpProtocol='tcp', FromPort=port, ToPort=port)
+                CidrIp='0.0.0.0/0', IpProtocol='tcp', FromPort=22, ToPort=22)
+            # TODO: is it always 9151?  Does that matter? Should this be configurable?
+            securitygroup.authorize_ingress(
+                CidrIp='0.0.0.0/0', IpProtocol='tcp', FromPort=self.URSULA_PORT, ToPort=self.URSULA_PORT)
+            for port in self.PROMETHEUS_PORTS:
+                securitygroup.authorize_ingress(
+                    CidrIp='0.0.0.0/0', IpProtocol='tcp', FromPort=port, ToPort=port)
 
-        for (source, dest) in self.OTHER_INGRESS_PORTS:
-            securitygroup.authorize_ingress(
-                CidrIp='0.0.0.0/0', IpProtocol='tcp', FromPort=source, ToPort=dest)
+            for (source, dest) in self.OTHER_INGRESS_PORTS:
+                securitygroup.authorize_ingress(
+                    CidrIp='0.0.0.0/0', IpProtocol='tcp', FromPort=source, ToPort=dest)
 
     def _do_setup_for_instance_creation(self):
         if not getattr(self, 'profile', None):
@@ -1527,7 +1584,7 @@ class AWSNodeConfigurator(BaseCloudNodeConfigurator):
         self.emitter.echo("\twaiting for instance to come online...")
         instance.wait_until_running()
         instance.load()
-        node_data['publicaddress'] = instance.public_dns_name
+        node_data['publicaddress'] = instance.public_ip_address
         node_data['provider_deploy_attrs'] = self._provider_deploy_attrs
 
         return node_data
@@ -1742,16 +1799,19 @@ class tBTCv2Deployer(GenericDeployer):
         return str(Path(DEFAULT_CONFIG_ROOT).joinpath(NODE_CONFIG_STORAGE_KEY, f'{self.namespace_network}.tbtcv2_ansible_inventory.yml'))
 
     @property
-    def instance_size(self):
-        return self.kwargs.get('instance_type') or "s-2vcpu-2gb"
-
-    @property
     def backup_directory(self):
         return f'{self.config_dir}/remote_operator_backups/'
 
     def stage_nodes(self, *args, **kwargs):
         self.playbook_name = "stage_tbtcv2.yml"
-        return super().deploy(*args, **kwargs)
+        try:
+            self.output_capture = {
+                'operator address': [],
+            }
+            return super().deploy(*args, **kwargs)
+        finally:
+            # only capture output during `tbtcv2 stage`
+            self.output_capture = {}
 
     def run_nodes(self, *args, **kwargs):
         self.playbook_name = "run_tbtcv2.yml"
@@ -1765,6 +1825,9 @@ class tBTCv2Deployer(GenericDeployer):
         self.playbook_name = "include/get_operator_address.yml"
         return super().deploy(*args, **kwargs)
 
+    def _format_runtime_options(self, node_options):
+        # override function to not automatically include `--network <value>`
+        return ' '.join([f'--{name} {value}' for name, value in node_options.items()])
 
 
 class EthDeployer(GenericDeployer):
