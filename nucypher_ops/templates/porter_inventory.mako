@@ -6,6 +6,7 @@ all:
           children:
             nodes:
               vars:
+                node_user: ${deployer.user}
                 network_name: ${deployer.network}
                 ansible_python_interpreter: /usr/bin/python3
                 ansible_connection: ssh

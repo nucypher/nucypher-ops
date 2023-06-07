@@ -1,6 +1,6 @@
 - import_playbook: include/setup_user.yml
 - import_playbook: include/setup_docker.yml
-- import_playbook: include/stop_containers.yml
+- import_playbook: include/stop_ursulas.yml
 
 - name: "Restore from local backup of remote Ursula data"
   hosts: "{{ play_hosts }}"

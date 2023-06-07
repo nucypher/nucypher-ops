@@ -1,0 +1,5 @@
+- name: "Run tBTCv2 and Random Beacon"
+  hosts: "{{ play_hosts }}"
+  remote_user: "{{ default_user }}"
+
+- import_playbook: include/run_tbtcv2.yml

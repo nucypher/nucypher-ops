@@ -1,0 +1,115 @@
+- name: "Run tBTCv2 and Random Beacon Node"
+  hosts: "{{ play_hosts }}"
+  remote_user: "{{ default_user }}"
+  gather_facts: no
+  tasks:
+
+    - name: "Find keystore file"
+      find:
+        paths: "{{ geth_dir }}keystore"
+      register: keystore_output
+
+    - name: store operator keyfile path
+      set_fact:
+        operator_keyfile_path: "{{ geth_dir }}keystore/{{ keystore_output.files[0].path | basename }}"
+
+    - name: "Get account address from file"
+      become: yes
+      command: 'cat {{ geth_dir }}account.txt'
+      register: active_account
+
+    - name: "Stop any running tBTCv2 and Random Beacon Nodes"
+      become: yes
+      become_user: "{{ node_user }}"
+      docker_container:
+        name: tbtcv2
+        state: stopped
+        image: "{{ docker_image | default('keepnetwork/keep-client:latest') }}"
+      ignore_errors: yes
+
+    - name: "Prune docker debris"
+      become: yes
+      docker_prune:
+        containers: yes
+        images: yes
+        images_filters:
+          dangling: false
+        networks: yes
+        volumes: yes
+        builder_cache: yes
+
+    - name: "pull {{ docker_image | default('keepnetwork/keep-client:latest') }}"
+      become: yes
+      docker_image:
+        name: "{{ docker_image | default('keepnetwork/keep-client:latest') }}"
+        source: pull
+        force_source: yes
+
+    - name: "Launch node"
+      become: yes
+      become_user: "{{ node_user }}"
+      docker_container:
+        image: "{{ docker_image | default('keepnetwork/keep-client:latest') }}"
+        recreate: yes
+        name: tbtcv2
+        state: started
+        pull: yes
+        volumes:
+          - "/home/{{ node_user }}/storage:/mnt/{{ node_user }}/storage"
+          - "{{ geth_dir }}:{{ geth_dir }}"
+        ports:
+          - "3919:3919"
+          - "9601:9601"
+        log_driver: json-file
+        log_options:
+          max-size: 100m
+          max-file: "3"
+        restart_policy: unless-stopped
+        command: "start \
+                  --ethereum.url {{ eth_provider }} \
+                  --ethereum.keyFile {{ operator_keyfile_path }} \
+                  --storage.dir /mnt/{{ node_user }}/storage \
+                  --network.announcedAddresses /ip4/{{ inventory_hostname }}/tcp/3919"
+        env:
+          LOG_LEVEL: "info"
+          KEEP_ETHEREUM_PASSWORD: "{{runtime_envvars['OPERATOR_ETHEREUM_PASSWORD']}}"
+
+    - name: "wait a few seconds for the node to become available"
+      pause:
+        seconds: 15
+
+    - name: "Backup operator ethereum keystore locally to: {{ deployer_config_path }}/remote_operator_backups/"
+      become: yes
+      become_user: "{{ node_user }}"
+      fetch:
+        src: "{{ operator_keyfile_path }}"
+        dest: "{{ deployer_config_path }}/remote_operator_backups/"
+
+    - name: "Echo operator address"
+      debug:
+        verbosity: 0
+        msg: "{{ inventory_hostname }}:operator address:{{ active_account.stdout }}"
+
+    - name: "Get log path"
+      become: yes
+      shell:
+        cmd: docker ps --no-trunc | grep tbtcv2 | cut -f 1 -d " "
+      register: tbtcv2_container_name
+
+    - name: "Read logs"
+      become: yes
+      command: docker logs tbtcv2
+      register: tbtcv2_logs
+
+    - name: "Echo logs"
+      debug:
+        msg:
+          "{{ tbtcv2_logs['stdout'] }}"
+
+    - name: "Wait for node to be ready"
+      become: yes
+      ignore_errors: yes
+      wait_for:
+        path: "/var/lib/docker/containers/{{ tbtcv2_container_name['stdout'] }}/{{ tbtcv2_container_name['stdout'] }}-json.log"
+        search_regex: "Trust math, not hardware."
+        timeout: 30
