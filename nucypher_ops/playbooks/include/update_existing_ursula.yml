@@ -27,6 +27,6 @@
       become_user: nucypher
       command: "docker run -v /home/nucypher:/root/.local/share/ \
         -it {{ docker_image | default('nucypher/nucypher:latest') }} \
-        nucypher ursula config migrate"
+        nucypher ursula config migrate --config-file /root/.local/share/nucypher/ursula.json"
 
 - import_playbook: run_ursula.yml
