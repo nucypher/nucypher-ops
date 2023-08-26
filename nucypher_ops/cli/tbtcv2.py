@@ -1,4 +1,14 @@
-from nucypher_ops.constants import DEFAULT_NAMESPACE, DEFAULT_NETWORK
+from pathlib import Path
+
+from ansible.executor.playbook_executor import PlaybookExecutor
+from ansible.inventory.manager import InventoryManager
+from ansible.parsing.dataloader import DataLoader
+from ansible.vars.manager import VariableManager
+
+from nucypher_ops.cli.recover_utils import compare_and_remove_common_namespace_data, \
+    add_deploy_attributes, collect_aws_pre_config_data, get_aws_instance_info
+from nucypher_ops.constants import DEFAULT_NAMESPACE, DEFAULT_NETWORK, PLAYBOOKS
+from nucypher_ops.ops.ansible_utils import AnsiblePlayBookResultsCollector
 from nucypher_ops.ops.fleet_ops import CloudDeployers
 import os
 import click
@@ -18,6 +28,7 @@ def cli():
 @click.option('--env', '-e', 'envvars', help="Environment variables used during execution (ENVVAR=VALUE)", multiple=True, type=click.STRING, default=[])
 @click.option('--cli', '-c', 'cliargs', help="additional cli launching arguments", multiple=True, type=click.STRING, default=[])
 def stage(image, namespace, network, include_hosts, envvars, cliargs):
+    """Set up and configure tbtcv2 node but don't run it"""
     deployer = CloudDeployers.get_deployer('tbtcv2')(emitter,
                                                      docker_image=image,
                                                      namespace=namespace,
@@ -43,6 +54,7 @@ def stage(image, namespace, network, include_hosts, envvars, cliargs):
 @click.option('--env', '-e', 'envvars', help="Environment variables used during execution (ENVVAR=VALUE)", multiple=True, type=click.STRING, default=[])
 @click.option('--cli', '-c', 'cliargs', help="additional cli launching arguments", multiple=True, type=click.STRING, default=[])
 def run(image, namespace, network, include_hosts, envvars, cliargs):
+    """Start tbtcv2 node."""
     deployer = CloudDeployers.get_deployer('tbtcv2')(emitter,
                                                      docker_image=image,
                                                      namespace=namespace,
@@ -68,6 +80,7 @@ def run(image, namespace, network, include_hosts, envvars, cliargs):
 @click.option('--env', '-e', 'envvars', help="Environment variables used during execution (ENVVAR=VALUE)", multiple=True, type=click.STRING, default=[])
 @click.option('--cli', '-c', 'cliargs', help="additional cli launching arguments", multiple=True, type=click.STRING, default=[])
 def operator_address(image, namespace, network, include_hosts, envvars, cliargs):
+    """Determine operator address for specified hosts"""
     deployer = CloudDeployers.get_deployer('tbtcv2')(emitter,
                                                      docker_image=image,
                                                      namespace=namespace,
@@ -85,12 +98,12 @@ def operator_address(image, namespace, network, include_hosts, envvars, cliargs)
     deployer.get_operator_address(hostnames)
 
 
-
 @cli.command('stop')
 @click.option('--namespace', help="Namespace for these nodes.  Used to address hosts and data locally and name hosts on cloud platforms.", type=click.STRING, default=DEFAULT_NAMESPACE)
 @click.option('--network', help="The network name these hosts will run on.", type=click.STRING, default=DEFAULT_NETWORK)
 @click.option('--include-host', 'include_hosts', help="specify hosts to target", multiple=True, type=click.STRING)
 def stop(namespace, network, include_hosts):
+    """Stop tbtcv2 node(s)"""
     deployer = CloudDeployers.get_deployer('tbtcv2')(emitter,
                                                      namespace=namespace,
                                                      network=network,
@@ -115,7 +128,7 @@ def stop(namespace, network, include_hosts):
               type=click.STRING)
 def fund(amount, namespace, network, include_hosts):
     """
-    fund remote nodes automatically using a locally managed burner wallet
+    Fund remote nodes automatically using a locally managed burner wallet
     """
 
     deployer = CloudDeployers.get_deployer('tbtcv2')(emitter, namespace=namespace, network=network)
@@ -165,6 +178,7 @@ def fund(amount, namespace, network, include_hosts):
 @click.option('--include-host', 'include_hosts', help="Peform this operation on only the named hosts", multiple=True,
               type=click.STRING)
 def defund(amount, to_address, namespace, network, include_hosts):
+    """Transfer remaining ETH balance from operator address to another address"""
     deployer = CloudDeployers.get_deployer('generic')(emitter, namespace=namespace, network=network)
 
     hostnames = deployer.config['instances'].keys()
@@ -172,3 +186,145 @@ def defund(amount, to_address, namespace, network, include_hosts):
         hostnames = include_hosts
 
     deployer.defund_nodes(hostnames, to=to_address, amount=amount)
+
+
+@cli.command('recover-node-config')
+@click.option('--include-host', 'include_hosts', help="specify hosts to recover", multiple=True, required=True, type=click.STRING)
+@click.option('--provider', help="The cloud provider host(s) are running on", multiple=False, required=True, type=click.Choice(['digitalocean', 'aws']))
+@click.option('--aws-profile', help="The AWS profile name to use when interacting with remote node", required=False)
+@click.option('--namespace', help="Namespace for these operations", type=click.STRING, default=DEFAULT_NAMESPACE)
+@click.option('--network', help="Network that the node is running on", type=click.STRING, default=DEFAULT_NETWORK)
+@click.option('--login-name', help="The name username of a user with root privileges we can ssh as on the host.", default="root")
+@click.option('--key-path', 'ssh_key_path', help="The path to a keypair we will need to ssh into this host (default: ~/.ssh/id_rsa)", default="~/.ssh/id_rsa")
+@click.option('--ssh-port', help="The port this host's ssh daemon is listening on (default: 22)", default=22)
+def recover_node_config(include_hosts, provider, aws_profile, namespace, network, login_name, ssh_key_path, ssh_port):
+    """Regenerate previously lost/deleted node config(s)"""
+    if (provider == 'aws') ^ bool(aws_profile):
+        raise click.BadOptionUsage('--aws-profile', f"Expected both '--aws-profile <profile>' and '--provider aws' to be specified; got ({aws_profile}, {provider})")
+    if provider == 'aws' and login_name != 'ubuntu':
+        result = emitter.confirm(f"When using AWS the expectation is that the login name would be 'ubuntu' and not '{login_name}'. Are you sure you want to continue using '{login_name}'?")
+        if not result:
+            raise click.BadOptionUsage('--login-name', "Incorrect use of '--login-name'")
+
+    playbook = Path(PLAYBOOKS).joinpath('recover_tbtcv2_ops_data.yml')
+
+    instance_capture = {
+        'InstanceId': [],
+        'publicaddress': [],
+        'host_nickname': [],
+        'eth_provider': [],
+        'docker_image': [],
+        'operator address': [],
+        'nickname': [],
+        'rest url': [],
+
+        # non-instance dictionary data
+        '_ssh-fingerprint': [],
+        '_instance-region': [],
+        '_operator-password': [],
+    }
+
+    inventory_host_list = '{},'.format(",".join(include_hosts))
+    loader = DataLoader()
+    inventory = InventoryManager(
+        loader=loader, sources=inventory_host_list)
+    hosts = inventory.get_hosts()
+    for host in hosts:
+        host.set_variable('ansible_ssh_private_key_file', ssh_key_path)
+        host.set_variable('default_user', login_name)
+        host.set_variable('ansible_port', ssh_port)
+        host.set_variable('ansible_connection', 'ssh')
+        host.set_variable('cloud_provider', provider)  # aws / digital ocean
+    callback = AnsiblePlayBookResultsCollector(
+        sock=emitter,
+        return_results=instance_capture
+    )
+    variable_manager = VariableManager(loader=loader, inventory=inventory)
+
+    executor = PlaybookExecutor(
+        playbooks=[playbook],
+        inventory=inventory,
+        variable_manager=variable_manager,
+        loader=loader,
+        passwords=dict(),
+    )
+
+    executor._tqm._stdout_callback = callback
+    executor.run()
+
+    #
+    # Process data capture
+    # 1. remove namespace metadata; keys that start with '_'
+    comparator_address_data = compare_and_remove_common_namespace_data(instance_capture, include_hosts)
+
+    # 2. add deploy attributes
+    add_deploy_attributes(instance_capture, include_hosts, ssh_key_path, login_name, ssh_port)
+
+    pre_config_metadata = {
+        "namespace": f'{namespace}-{network}',
+        "keystorepassword": "N/A (recovery mode)",
+        "ethpassword": comparator_address_data['_operator-password'],
+        "keystoremnemonic": "N/A (recovery mode)",
+        "sshkey": comparator_address_data['_ssh-fingerprint'],
+    }
+
+    # 3. Provider information
+    region = comparator_address_data['_instance-region']
+    if provider == 'digitalocean':
+        pre_config_metadata['digital-ocean-region'] = region
+
+        # DO access token
+        digital_access_token = emitter.prompt(
+            f"Please enter your Digital Ocean Access Token which can be created here: https://cloud.digitalocean.com/account/api/tokens.  It looks like this: b34abcDEF17ABCDEFAbcDEf09fd72a28425ABCDEF8b198e9623ABCDEFc11591")
+        if not digital_access_token:
+            raise AttributeError(
+                "Could not continue without Access Token")
+        pre_config_metadata['digital-ocean-access-token'] = digital_access_token
+    else:
+        aws_config_data = collect_aws_pre_config_data(aws_profile, region, include_hosts[0],
+                                                      ssh_key_path)
+        pre_config_metadata.update(aws_config_data)
+
+    # set up pre-config instances
+    node_names = []
+    instances_dict = {}
+
+    if provider == 'aws':
+        # must update 'nickname' and 'host_nickname' entries - aws nicknames are local
+        instance_capture['nickname'].clear()
+
+    old_host_nicknames = instance_capture.pop('host_nickname')
+    instance_capture['host_nickname'] = []
+    for ip_address, host_nickname in old_host_nicknames:
+        if provider == 'aws':
+            # update nickname for AWS
+            instance_info = get_aws_instance_info(aws_profile, region, ip_address)
+            host_nickname = instance_info['Tags'][0]['Value']
+            instance_capture['nickname'].append((ip_address, host_nickname))
+
+        # either update for AWS or leave the same for DigitalOcean
+        instance_capture['host_nickname'].append((ip_address, host_nickname))
+        instances_dict[host_nickname] = {
+            "publicaddress": ip_address,
+            "installed": ["tbtcv2"],
+            "provider": provider,
+        }
+
+        node_names.append(host_nickname)  # store node names
+
+    pre_config_metadata["instances"] = instances_dict
+
+    deployer = CloudDeployers.get_deployer("tbtcv2")(
+        emitter,
+        recovery_mode=True,
+        namespace=namespace,
+        network=network,
+        pre_config=pre_config_metadata,
+        resource_name='tbtcv2'
+    )
+
+    # regenerate instance configuration file
+    deployer.recover_instance_config(instance_data=instance_capture)
+
+    # regenerate inventory file
+    deployer.update_generate_inventory(node_names)

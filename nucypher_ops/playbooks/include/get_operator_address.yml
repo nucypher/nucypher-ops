@@ -38,3 +38,9 @@
         src: "{{item.path}}"
         dest: "{{deployer_config_path}}/remote_operator_backups/"
       with_items: "{{keystore_files.files}}"
+
+    - name: "Print information for output capture"
+      debug:
+        msg:
+          " operator address: {{operator_address}}\n
+          "
