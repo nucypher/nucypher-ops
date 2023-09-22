@@ -68,8 +68,8 @@
            publicaddress:          {{ursula_config.rest_host}}\n
            host_nickname:          {{ursula_hostname.stdout}}\n
            eth_provider:           {{ursula_config.eth_provider_uri}}\n
-           payment_provider:       {{ursula_config.payment_provider}}\n
-           payment_network:        {{ursula_config.payment_network}}\n
+           pre_payment_provider:       {{ursula_config.pre_payment_provider}}\n
+           pre_payment_network:        {{ursula_config.pre_payment_network}}\n
            docker_image:           {{running_docker_image.stdout}}\n
            operator address:       {{ursula_config.operator_address}}\n
            nickname:               {{ursula_hostname.stdout}}\n

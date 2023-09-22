@@ -26,7 +26,7 @@ all:
                 wipe_eth_wallet: ${extra.get('init', False)}
                 deployer_config_path: ${deployer.config_dir}
                 restore_path: ${extra.get('restore_path')}
-                payment_network: ${deployer.config.get('payment_network', 'polygon')}
+                pre_payment_network: ${deployer.config.get('pre_payment_network', 'polygon')}
               hosts:
                 %for node in nodes:
                 ${node['publicaddress']}:
@@ -37,11 +37,11 @@ all:
                   % if node.get('eth_provider'):
                   eth_provider: ${node['eth_provider']}
                   %endif
-                  % if node.get('payment_provider'):
-                  payment_provider: ${node['payment_provider']}
+                  % if node.get('pre_payment_provider'):
+                  pre_payment_provider: ${node['pre_payment_provider']}
                   %endif
-                  % if node.get('payment_network'):
-                  payment_network: ${node['payment_network']}
+                  % if node.get('pre_payment_network'):
+                  pre_payment_network: ${node['pre_payment_network']}
                   %endif
                   %if node.get('docker_image'):
                   docker_image: ${node['docker_image']}

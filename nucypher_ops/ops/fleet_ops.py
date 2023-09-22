@@ -18,7 +18,7 @@ from mako.template import Template
 from nucypher_ops.constants import (
     CHAIN_NAMES, NETWORKS, DEFAULT_CONFIG_ROOT, PLAYBOOKS, TEMPLATES,
     NUCYPHER_ENVVAR_KEYSTORE_PASSWORD,
-    NUCYPHER_ENVVAR_OPERATOR_ETHEREUM_PASSWORD, PAYMENT_NETWORKS, PAYMENT_NETWORK_CHOICES
+    NUCYPHER_ENVVAR_OPERATOR_ETHEREUM_PASSWORD, PRE_PAYMENT_NETWORKS, PRE_PAYMENT_NETWORK_CHOICES
 )
 from nucypher_ops.ops import keygen
 from nucypher_ops.ops.ansible_utils import AnsiblePlayBookResultsCollector
@@ -66,15 +66,15 @@ class BaseCloudNodeConfigurator:
     application = 'ursula'
     required_fields = [
         'eth_provider',
-        'payment_provider',
+        'pre_payment_provider',
         'docker_image',
-        'payment_network'
+        'pre_payment_network'
     ]
 
     host_level_override_prompts = {
         'eth_provider': {"prompt": "--eth-provider: please provide the url of a hosted ethereum node (infura/geth) which your nodes can access", "choices": None},
-        'payment_provider': {"prompt": "--payment-provider: please provide the url of a hosted level-two node (infura/bor) which your nodes can access", "choices": None},
-        'payment_network':  {"prompt": f'--payment-network:  choose a payment network from: {PAYMENT_NETWORK_CHOICES}', "choices": PAYMENT_NETWORKS},
+        'pre_payment_provider': {"prompt": "--pre-payment-provider: please provide the url of a hosted level-two node (infura/bor) which your nodes can access", "choices": None},
+        'pre_payment_network':  {"prompt": f'--pre-payment-network:  choose a payment network from: {PRE_PAYMENT_NETWORK_CHOICES}', "choices": PRE_PAYMENT_NETWORKS},
     }
 
     output_capture = {
@@ -181,9 +181,9 @@ class BaseCloudNodeConfigurator:
         # to allow for individual host config differentiation
         self.host_level_overrides = {k: v for k, v in {
             'eth_provider': eth_provider,
-            'payment_provider': self.kwargs.get('payment_provider'),
+            'pre_payment_provider': self.kwargs.get('pre_payment_provider'),
             'docker_image': docker_image,
-            'payment_network':  self.kwargs.get('payment_network'),
+            'pre_payment_network':  self.kwargs.get('pre_payment_network'),
         }.items() if k in self.required_fields}
 
         self.config['seed_network'] = seed_network if seed_network is not None else self.config.get(
@@ -191,8 +191,8 @@ class BaseCloudNodeConfigurator:
         if not self.config['seed_network']:
             self.config.pop('seed_node', None)
 
-        if self.kwargs.get('payment_network'):
-            self.config['payment_network'] = self.kwargs.get('payment_network')
+        if self.kwargs.get('pre_payment_network'):
+            self.config['pre_payment_network'] = self.kwargs.get('pre_payment_network')
 
         # add instance key as host_nickname for use in inventory
         if self.config.get('instances'):
