@@ -11,8 +11,7 @@ from nucypher_ops.cli.recover_utils import (
     compare_and_remove_common_namespace_data,
     add_deploy_attributes,
     get_aws_instance_info,
-    get_aws_internet_gateway_info,
-    get_aws_route_table_info, collect_aws_pre_config_data
+    collect_aws_pre_config_data
 )
 from nucypher_ops.constants import DEFAULT_NAMESPACE, DEFAULT_NETWORK, PLAYBOOKS
 from nucypher_ops.ops.ansible_utils import AnsiblePlayBookResultsCollector
@@ -27,8 +26,8 @@ def cli():
 
 
 @cli.command('deploy')
-@click.option('--payment-network', help="Payment network name.  For testnets use 'mumbai'.", type=click.STRING, default='polygon')
-@click.option('--payment-provider', help="The remote blockchain provider for the payment network.", default=None)
+@click.option('--pre-payment-network', help="Payment network name.  For testnets use 'mumbai'.", type=click.STRING, default='polygon')
+@click.option('--pre-payment-provider', help="The remote blockchain provider for the payment network.", default=None)
 @click.option('--eth-provider', help="The remote blockchain provider for policies on the remote node.", default=None)
 @click.option('--nucypher-image', help="The docker image containing the nucypher code to run on the remote nodes.", default='nucypher/nucypher:latest')
 @click.option('--seed-network', help="Do you want the 1st node to be --lonely and act as a seed node for this network", default=None, is_flag=True)
@@ -39,7 +38,7 @@ def cli():
 @click.option('--include-host', 'include_hosts', help="specify hosts to update", multiple=True, type=click.STRING)
 @click.option('--env', '-e', 'envvars', help="environment variables (ENVVAR=VALUE)", multiple=True, type=click.STRING, default=[])
 @click.option('--cli', '-c', 'cliargs', help="cli arguments for 'nucypher run': eg.'--max-gas-price 50'/'--c max-gas-price=50'", multiple=True, type=click.STRING, default=[])
-def deploy(payment_network, payment_provider, eth_provider, nucypher_image, seed_network, init, migrate,
+def deploy(pre_payment_network, pre_payment_provider, eth_provider, nucypher_image, seed_network, init, migrate,
            namespace, network, include_hosts, envvars, cliargs):
     """Deploys NuCypher on managed hosts."""
 
@@ -52,8 +51,8 @@ def deploy(payment_network, payment_provider, eth_provider, nucypher_image, seed
                                                       resource_name='nucypher',
                                                       eth_provider=eth_provider,
                                                       docker_image=nucypher_image,
-                                                      payment_provider=payment_provider,
-                                                      payment_network=payment_network
+                                                      pre_payment_provider=pre_payment_provider,
+                                                      pre_payment_network=pre_payment_network
                                                       )
 
     hostnames = deployer.config['instances'].keys()
@@ -257,8 +256,8 @@ def recover_node_config(include_hosts, namespace, provider, aws_profile, login_n
         'installed': [],
         'host_nickname': [],
         'eth_provider': [],
-        'payment_provider': [],
-        'payment_network': [],
+        'pre_payment_provider': [],
+        'pre_payment_network': [],
         'docker_image': [],
         'operator address': [],
         'nickname': [],

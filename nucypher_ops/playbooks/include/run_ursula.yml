@@ -50,8 +50,8 @@
         nucypher ursula config \
         --eth-provider {{ eth_provider }} \
         --network {{network_name}} \
-        --payment-network {{payment_network}} \
-        --payment-provider {{payment_provider}} \
+        --pre-payment-network {{pre_payment_network}} \
+        --pre-payment-provider {{pre_payment_provider}} \
         --rest-host {{ip_response.content}} \
         {{nucypher_ursula_init_options | default('')}} {{signer_options}}"
       environment:

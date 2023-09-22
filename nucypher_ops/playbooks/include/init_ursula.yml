@@ -74,8 +74,8 @@
         --operator-address {{active_account.stdout}} \
         --rest-host {{ip_response.content}} \
         --network {{network_name}} \
-        --payment-network {{payment_network}} \
-        --payment-provider {{payment_provider}} \
+        --pre-payment-network {{pre_payment_network}} \
+        --pre-payment-provider {{pre_payment_provider}} \
         {{nucypher_ursula_init_options | default('')}} {{signer_options}}"
       environment:
         NUCYPHER_KEYSTORE_PASSWORD: "{{runtime_envvars['NUCYPHER_KEYSTORE_PASSWORD']}}"
