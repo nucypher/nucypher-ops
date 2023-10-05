@@ -4,7 +4,7 @@ import os
 import random
 import time
 import warnings
-from base64 import b64encode, b64decode
+from base64 import b64decode, b64encode
 from pathlib import Path
 
 import maya
@@ -16,9 +16,8 @@ from ansible.vars.manager import VariableManager
 from mako.template import Template
 
 from nucypher_ops.constants import (
-    CHAIN_NAMES, NETWORKS, DEFAULT_CONFIG_ROOT, PLAYBOOKS, TEMPLATES,
-    NUCYPHER_ENVVAR_KEYSTORE_PASSWORD,
-    NUCYPHER_ENVVAR_OPERATOR_ETHEREUM_PASSWORD, PRE_PAYMENT_NETWORKS, PRE_PAYMENT_NETWORK_CHOICES
+    CHAIN_NAMES, DEFAULT_CONFIG_ROOT, NETWORKS, NUCYPHER_ENVVAR_KEYSTORE_PASSWORD,
+    NUCYPHER_ENVVAR_OPERATOR_ETHEREUM_PASSWORD, PLAYBOOKS, TEMPLATES,
 )
 from nucypher_ops.ops import keygen
 from nucypher_ops.ops.ansible_utils import AnsiblePlayBookResultsCollector
@@ -65,16 +64,14 @@ class BaseCloudNodeConfigurator:
     NAMESSPACE_CREATE_ACTIONS = ['add', 'create', 'copy']
     application = 'ursula'
     required_fields = [
-        'eth_provider',
-        'pre_payment_provider',
+        'eth_endpoint',
+        'polygon_endpoint',
         'docker_image',
-        'pre_payment_network'
     ]
 
     host_level_override_prompts = {
-        'eth_provider': {"prompt": "--eth-provider: please provide the url of a hosted ethereum node (infura/geth) which your nodes can access", "choices": None},
-        'pre_payment_provider': {"prompt": "--pre-payment-provider: please provide the url of a hosted level-two node (infura/bor) which your nodes can access", "choices": None},
-        'pre_payment_network':  {"prompt": f'--pre-payment-network:  choose a payment network from: {PRE_PAYMENT_NETWORK_CHOICES}', "choices": PRE_PAYMENT_NETWORKS},
+        'eth_endpoint': {"prompt": "--eth-endpoint: please provide the url of a hosted ethereum node (infura/geth) which your nodes can access", "choices": None},
+        'polygon_endpoint': {"prompt": "--polygon-endpoint: please provide the url of a hosted level-two node (infura/bor) which your nodes can access", "choices": None},
     }
 
     output_capture = {
@@ -95,7 +92,7 @@ class BaseCloudNodeConfigurator:
                  envvars=None,
                  cliargs=None,
                  resource_name=None,
-                 eth_provider=None,
+                 eth_endpoint=None,
                  docker_image=None,
                  **kwargs
                  ):
@@ -146,6 +143,9 @@ class BaseCloudNodeConfigurator:
         if self.config_path.exists():
             try:
                 self.config = json.load(open(self.config_path))
+
+                # migration of old config values here
+                self._migrate_config_properties()
             except json.decoder.JSONDecodeError as e:
                 self.emitter.echo(
                     f"could not decode config file at: {self.config_path}")
@@ -163,7 +163,7 @@ class BaseCloudNodeConfigurator:
                 "keystorepassword": b64encode(os.urandom(64)).decode('utf-8'),
                 "ethpassword": b64encode(os.urandom(64)).decode('utf-8'),
                 'instances': {},
-                'eth_provider': eth_provider,
+                'eth_endpoint': eth_endpoint,
                 'docker_image': docker_image
             }
             self._write_config()
@@ -180,10 +180,9 @@ class BaseCloudNodeConfigurator:
         # save these to update host specific variables before deployment
         # to allow for individual host config differentiation
         self.host_level_overrides = {k: v for k, v in {
-            'eth_provider': eth_provider,
-            'pre_payment_provider': self.kwargs.get('pre_payment_provider'),
+            'eth_endpoint': eth_endpoint,
+            'polygon_endpoint': self.kwargs.get('polygon_endpoint'),
             'docker_image': docker_image,
-            'pre_payment_network':  self.kwargs.get('pre_payment_network'),
         }.items() if k in self.required_fields}
 
         self.config['seed_network'] = seed_network if seed_network is not None else self.config.get(
@@ -191,15 +190,29 @@ class BaseCloudNodeConfigurator:
         if not self.config['seed_network']:
             self.config.pop('seed_node', None)
 
-        if self.kwargs.get('pre_payment_network'):
-            self.config['pre_payment_network'] = self.kwargs.get('pre_payment_network')
-
         # add instance key as host_nickname for use in inventory
         if self.config.get('instances'):
             for k, v in self.config['instances'].items():
                 self.config['instances'][k]['host_nickname'] = k
 
         self._write_config()
+
+    def _migrate_config_properties(self):
+        # remove payment/pre_payment_network if present
+        self.config.pop("pre_payment_network", None)
+        self.config.pop("payment_network", None)
+
+        # eth_provider -> eth_endpoint
+        eth_provider = self.config.pop("eth_provider", None)
+        if eth_provider:
+            self.config["eth_endpoint"] = eth_provider
+
+        # payment_provider/pre_payment_provider -> polygon_endpoint
+        payment_provider = self.config.pop("payment_provider", None)
+        pre_payment_provider = self.config.pop("pre_payment_provider", None)
+        provider_value = payment_provider or pre_payment_provider
+        if provider_value:
+            self.config["polygon_endpoint"] = provider_value
 
     @property
     def user(self) -> str:

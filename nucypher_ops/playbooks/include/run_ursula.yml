@@ -48,10 +48,9 @@
       command: "docker run -v /home/nucypher:/root/.local/share/ \
         -e NUCYPHER_KEYSTORE_PASSWORD -it {{ docker_image | default('nucypher/nucypher:latest') }} \
         nucypher ursula config \
-        --eth-provider {{ eth_provider }} \
         --network {{network_name}} \
-        --pre-payment-network {{pre_payment_network}} \
-        --pre-payment-provider {{pre_payment_provider}} \
+        --eth-endpoint {{ eth_endpoint }} \
+        --polygon-endpoint {{polygon_endpoint}} \
         --rest-host {{ip_response.content}} \
         {{nucypher_ursula_init_options | default('')}} {{signer_options}}"
       environment:

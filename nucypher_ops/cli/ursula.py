@@ -26,9 +26,8 @@ def cli():
 
 
 @cli.command('deploy')
-@click.option('--pre-payment-network', help="Payment network name.  For testnets use 'mumbai'.", type=click.STRING, default='polygon')
-@click.option('--pre-payment-provider', help="The remote blockchain provider for the payment network.", default=None)
-@click.option('--eth-provider', help="The remote blockchain provider for policies on the remote node.", default=None)
+@click.option('--polygon-endpoint', help="The polygon L2 blockchain provider for the remote node.", default=None)
+@click.option('--eth-endpoint', help="The ethereum blockchain provider for the remote node.", default=None)
 @click.option('--nucypher-image', help="The docker image containing the nucypher code to run on the remote nodes.", default='nucypher/nucypher:latest')
 @click.option('--seed-network', help="Do you want the 1st node to be --lonely and act as a seed node for this network", default=None, is_flag=True)
 @click.option('--init', help="Clear your nucypher config and start a fresh node with new keys", default=False, is_flag=True)
@@ -38,7 +37,7 @@ def cli():
 @click.option('--include-host', 'include_hosts', help="specify hosts to update", multiple=True, type=click.STRING)
 @click.option('--env', '-e', 'envvars', help="environment variables (ENVVAR=VALUE)", multiple=True, type=click.STRING, default=[])
 @click.option('--cli', '-c', 'cliargs', help="cli arguments for 'nucypher run': eg.'--max-gas-price 50'/'--c max-gas-price=50'", multiple=True, type=click.STRING, default=[])
-def deploy(pre_payment_network, pre_payment_provider, eth_provider, nucypher_image, seed_network, init, migrate,
+def deploy(polygon_endpoint, eth_endpoint, nucypher_image, seed_network, init, migrate,
            namespace, network, include_hosts, envvars, cliargs):
     """Deploys NuCypher on managed hosts."""
 
@@ -49,10 +48,9 @@ def deploy(pre_payment_network, pre_payment_provider, eth_provider, nucypher_ima
                                                       envvars=envvars,
                                                       cliargs=cliargs,
                                                       resource_name='nucypher',
-                                                      eth_provider=eth_provider,
+                                                      eth_endpoint=eth_endpoint,
+                                                      polygon_endpoint=polygon_endpoint,
                                                       docker_image=nucypher_image,
-                                                      pre_payment_provider=pre_payment_provider,
-                                                      pre_payment_network=pre_payment_network
                                                       )
 
     hostnames = deployer.config['instances'].keys()
@@ -255,9 +253,8 @@ def recover_node_config(include_hosts, namespace, provider, aws_profile, login_n
         'publicaddress': [],
         'installed': [],
         'host_nickname': [],
-        'eth_provider': [],
-        'pre_payment_provider': [],
-        'pre_payment_network': [],
+        'eth_endpoint': [],
+        'polygon_endpoint': [],
         'docker_image': [],
         'operator address': [],
         'nickname': [],
