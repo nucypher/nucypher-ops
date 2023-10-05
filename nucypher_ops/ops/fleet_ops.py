@@ -6,6 +6,7 @@ import time
 import warnings
 from base64 import b64decode, b64encode
 from pathlib import Path
+from typing import Dict
 
 import maya
 import requests
@@ -145,9 +146,6 @@ class BaseCloudNodeConfigurator:
         if self.config_path.exists():
             try:
                 self.config = json.load(open(self.config_path))
-
-                # migration of old config values here
-                self._migrate_config_properties()
             except json.decoder.JSONDecodeError as e:
                 self.emitter.echo(
                     f"could not decode config file at: {self.config_path}")
@@ -197,24 +195,28 @@ class BaseCloudNodeConfigurator:
             for k, v in self.config['instances'].items():
                 self.config['instances'][k]['host_nickname'] = k
 
+                # migration of old instance config values here
+                self._migrate_config_properties(self.config['instances'][k])
+
         self._write_config()
 
-    def _migrate_config_properties(self):
+    @staticmethod
+    def _migrate_config_properties(config: Dict):
         # remove payment/pre_payment_network if present
-        self.config.pop("pre_payment_network", None)
-        self.config.pop("payment_network", None)
+        config.pop("pre_payment_network", None)
+        config.pop("payment_network", None)
 
         # eth_provider -> eth_endpoint
-        eth_provider = self.config.pop("eth_provider", None)
+        eth_provider = config.pop("eth_provider", None)
         if eth_provider:
-            self.config["eth_endpoint"] = eth_provider
+            config["eth_endpoint"] = eth_provider
 
         # payment_provider/pre_payment_provider -> polygon_endpoint
-        payment_provider = self.config.pop("payment_provider", None)
-        pre_payment_provider = self.config.pop("pre_payment_provider", None)
+        payment_provider = config.pop("payment_provider", None)
+        pre_payment_provider = config.pop("pre_payment_provider", None)
         provider_value = payment_provider or pre_payment_provider
         if provider_value:
-            self.config["polygon_endpoint"] = provider_value
+            config["polygon_endpoint"] = provider_value
 
     @property
     def user(self) -> str:
@@ -298,6 +300,9 @@ class BaseCloudNodeConfigurator:
         if not nodes:
             raise KeyError(
                 f"No hosts matched the supplied host names: {node_names}; ensure `host-nickname` is used.  Try `nucypher-ops nodes list --all` to view hosts or create new hosts with `nucypher-ops nodes create`")
+
+        # migrate values if necessary
+        self._migrate_config_properties(nodes)
 
         defaults = self.default_config()
         if generate_keymaterial or kwargs.get('migrate_nucypher') or kwargs.get('init'):
