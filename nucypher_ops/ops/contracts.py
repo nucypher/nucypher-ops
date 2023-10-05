@@ -1,9 +1,9 @@
-from typing import Union
+from typing import Dict, Union
 
 import requests
 
 
-class NuCypherContractRegistry:
+class TACoContractRegistry:
 
     """
     A simple/dumber version of nucypher/nucypher/blockchain/eth/registry.py
@@ -22,7 +22,7 @@ class NuCypherContractRegistry:
         url = f"{self._BASE_URL}/development/nucypher/blockchain/eth/contract_registry/{self.domain}.json"
         return url
 
-    def fetch_latest_publication(self) -> Union[str, bytes]:
+    def fetch_latest_publication(self) -> Dict:
         # Setup
         publication_endpoint = self.get_publication_endpoint()
         try:

@@ -21,7 +21,7 @@ from nucypher_ops.constants import (
 )
 from nucypher_ops.ops import keygen
 from nucypher_ops.ops.ansible_utils import AnsiblePlayBookResultsCollector
-from nucypher_ops.ops.contracts import NuCypherContractRegistry
+from nucypher_ops.ops.contracts import TACoContractRegistry
 
 try:
     import boto3
@@ -52,9 +52,11 @@ def needs_provider(method):
 def needs_registry(method):
     def inner(self, *args, **kwargs):
         if self.contract_registry is None:
-            registry = NuCypherContractRegistry(domain=self.network)
+            chain_id = NETWORKS[self.network]['policy']
+            registry = TACoContractRegistry(domain=self.network)
+            latest_publication = registry.fetch_latest_publication()[str(chain_id)]
             self.contract_registry = {name: (
-                address, abi) for name, version, address, abi in registry.fetch_latest_publication()}
+                info["address"], info["abi"]) for name, info in latest_publication.items()}
         return method(self, self.contract_registry, *args, **kwargs)
     return inner
 
@@ -918,21 +920,21 @@ class BaseCloudNodeConfigurator:
     @needs_registry
     @needs_provider
     def get_staking_provider(self, web3, contracts, address):
-        contract_address, abi = contracts['SimplePREApplication']
+        contract_address, abi = contracts['TACoApplication']
         contract = web3.eth.contract(abi=abi, address=contract_address)
         return contract.functions.stakingProviderFromOperator(address).call()
 
     @needs_registry
     @needs_provider
     def check_is_confirmed(self, web3, contracts, address):
-        contract_address, abi = contracts['SimplePREApplication']
+        contract_address, abi = contracts['TACoApplication']
         contract = web3.eth.contract(abi=abi, address=contract_address)
         return contract.functions.isOperatorConfirmed(address).call()
 
     @needs_registry
     @needs_provider
     def get_stake_amount(self, web3, contracts, address):
-        contract_address, abi = contracts['SimplePREApplication']
+        contract_address, abi = contracts['TACoApplication']
         contract = web3.eth.contract(abi=abi, address=contract_address)
         balance = contract.functions.authorizedStake(address).call()
         return int(web3.fromWei(balance, 'ether'))
