@@ -52,7 +52,7 @@ def needs_provider(method):
 def needs_registry(method):
     def inner(self, *args, **kwargs):
         if self.contract_registry is None:
-            registry = NuCypherContractRegistry(network_name=self.network)
+            registry = NuCypherContractRegistry(domain=self.network)
             self.contract_registry = {name: (
                 address, abi) for name, version, address, abi in registry.fetch_latest_publication()}
         return method(self, self.contract_registry, *args, **kwargs)
