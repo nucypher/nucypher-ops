@@ -1,5 +1,5 @@
 asyncclick
-ansible
+ansible==7.7.0
 hdwallet
 mako
 requests
