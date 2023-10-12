@@ -73,7 +73,7 @@
         --eth-endpoint {{ eth_endpoint }} \
         --operator-address {{active_account.stdout}} \
         --rest-host {{ip_response.content}} \
-        --network {{network_name}} \
+        --domain {{network_name}} \
         --polygon-endpoint {{polygon_endpoint}} \
         {{nucypher_ursula_init_options | default('')}} {{signer_options}}"
       environment:

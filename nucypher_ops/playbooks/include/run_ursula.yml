@@ -48,7 +48,7 @@
       command: "docker run -v /home/nucypher:/root/.local/share/ \
         -e NUCYPHER_KEYSTORE_PASSWORD -it {{ docker_image | default('nucypher/nucypher:latest') }} \
         nucypher ursula config \
-        --network {{network_name}} \
+        --domain {{network_name}} \
         --eth-endpoint {{ eth_endpoint }} \
         --polygon-endpoint {{polygon_endpoint}} \
         --rest-host {{ip_response.content}} \
