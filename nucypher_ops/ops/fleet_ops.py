@@ -256,7 +256,7 @@ class BaseCloudNodeConfigurator:
         pass
 
     def _format_runtime_options(self, node_options):
-        node_options.update({'network': self.network})
+        node_options.update({'domain': self.network})
         return ' '.join([f'--{name} {value}' for name, value in node_options.items()])
 
     @property
