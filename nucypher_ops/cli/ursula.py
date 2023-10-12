@@ -70,7 +70,9 @@ def deploy(polygon_endpoint, eth_endpoint, nucypher_image, seed_network, init, m
 @click.option('--include-host', 'include_hosts', help="specify hosts to update", multiple=True, type=click.STRING)
 @click.option('--env', '-e', 'envvars', help="environment variables (ENVVAR=VALUE)", multiple=True, type=click.STRING, default=[])
 @click.option('--cli', '-c', 'cliargs', help="cli arguments for 'nucypher run': eg.'--max-gas-price 50'/'--c max-gas-price=50'", multiple=True, type=click.STRING, default=[])
-def update(nucypher_image, namespace, network, include_hosts, envvars, cliargs):
+@click.option('--eth-endpoint', help="The ethereum blockchain provider for the remote node.", default=None)
+@click.option('--polygon-endpoint', help="The polygon L2 blockchain provider for the remote node.", default=None)
+def update(nucypher_image, namespace, network, include_hosts, envvars, cliargs, eth_endpoint, polygon_endpoint):
     """Update images and change cli/env options on already running hosts"""
 
     deployer = CloudDeployers.get_deployer('generic')(emitter,
@@ -79,7 +81,9 @@ def update(nucypher_image, namespace, network, include_hosts, envvars, cliargs):
                                                       envvars=envvars,
                                                       cliargs=cliargs,
                                                       resource_name='nucypher',
-                                                      docker_image=nucypher_image
+                                                      docker_image=nucypher_image,
+                                                      eth_endpoint=eth_endpoint,
+                                                      polygon_endpoint=polygon_endpoint
                                                       )
 
     hostnames = deployer.config['instances'].keys()
