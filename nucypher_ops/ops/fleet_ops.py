@@ -200,23 +200,36 @@ class BaseCloudNodeConfigurator:
 
         self._write_config()
 
-    @staticmethod
-    def _migrate_config_properties(config: Dict):
-        # remove payment/pre_payment_network if present
-        config.pop("pre_payment_network", None)
-        config.pop("payment_network", None)
+    def _migrate_config_properties(self, node_config: Dict):
+        if self.application == "ursula":
+            #
+            # instance info
+            #
 
-        # eth_provider -> eth_endpoint
-        eth_provider = config.pop("eth_provider", None)
-        if eth_provider:
-            config["eth_endpoint"] = eth_provider
+            # remove payment/pre_payment_network if present
+            node_config.pop("pre_payment_network", None)
+            node_config.pop("payment_network", None)
 
-        # payment_provider/pre_payment_provider -> polygon_endpoint
-        payment_provider = config.pop("payment_provider", None)
-        pre_payment_provider = config.pop("pre_payment_provider", None)
-        provider_value = payment_provider or pre_payment_provider
-        if provider_value:
-            config["polygon_endpoint"] = provider_value
+            # eth_provider -> eth_endpoint
+            eth_provider = node_config.pop("eth_provider", None)
+            if eth_provider:
+                node_config["eth_endpoint"] = eth_provider
+
+            # payment_provider/pre_payment_provider -> polygon_endpoint
+            payment_provider = node_config.pop("payment_provider", None)
+            pre_payment_provider = node_config.pop("pre_payment_provider", None)
+            provider_value = payment_provider or pre_payment_provider
+            if provider_value:
+                node_config["polygon_endpoint"] = provider_value
+
+            #
+            # runtime cli args
+            #
+            node_cliargs = node_config.get("runtime_cliargs", {})
+            node_cliargs.pop("network", None)
+            node_cliargs.pop("payment-network", None)
+            node_cliargs.pop("payment-provider", None)
+            node_cliargs.pop("eth-provider", None)
 
     @property
     def user(self) -> str:
@@ -302,7 +315,8 @@ class BaseCloudNodeConfigurator:
                 f"No hosts matched the supplied host names: {node_names}; ensure `host-nickname` is used.  Try `nucypher-ops nodes list --all` to view hosts or create new hosts with `nucypher-ops nodes create`")
 
         # migrate values if necessary
-        self._migrate_config_properties(nodes)
+        for key, node in nodes.items():
+            self._migrate_config_properties(nodes[key])
 
         defaults = self.default_config()
         if generate_keymaterial or kwargs.get('migrate_nucypher') or kwargs.get('init'):
@@ -322,6 +336,7 @@ class BaseCloudNodeConfigurator:
                 node_vars = nodes[key].get(data_key, {})
                 for k, v in input_data:
                     node_vars.update({k: v})
+
                 nodes[key][data_key] = node_vars
 
                 # we want to update the config with the specified values
