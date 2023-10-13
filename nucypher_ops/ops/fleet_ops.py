@@ -226,10 +226,16 @@ class BaseCloudNodeConfigurator:
             # runtime cli args
             #
             node_cliargs = node_config.get("runtime_cliargs", {})
-            node_cliargs.pop("network", None)
-            node_cliargs.pop("payment-network", None)
-            node_cliargs.pop("payment-provider", None)
-            node_cliargs.pop("eth-provider", None)
+            deprecated_cliargs = [
+                "network",
+                "payment-network",
+                "pre-payment-network",
+                "payment-provider",
+                "pre-payment-provider",
+                "eth-provider",
+            ]
+            for deprecated_arg in deprecated_cliargs:
+                node_cliargs.pop(deprecated_arg, None)
 
     @property
     def user(self) -> str:
