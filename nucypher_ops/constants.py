@@ -34,9 +34,6 @@ NETWORKS = {
     'oryx': {'policy': GOERLI, 'payment': POLYGON_MAINNET}
 }
 
-PRE_PAYMENT_NETWORKS = ('polygon', 'mumbai')
-PRE_PAYMENT_NETWORK_CHOICES = '\n\t'.join(PRE_PAYMENT_NETWORKS)
-
 BASE_DIR = os.path.dirname(__file__)
 
 PLAYBOOKS = os.path.join(BASE_DIR, 'playbooks')

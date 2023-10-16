@@ -4,8 +4,9 @@ import os
 import random
 import time
 import warnings
-from base64 import b64encode, b64decode
+from base64 import b64decode, b64encode
 from pathlib import Path
+from typing import Dict
 
 import maya
 import requests
@@ -16,13 +17,12 @@ from ansible.vars.manager import VariableManager
 from mako.template import Template
 
 from nucypher_ops.constants import (
-    CHAIN_NAMES, NETWORKS, DEFAULT_CONFIG_ROOT, PLAYBOOKS, TEMPLATES,
-    NUCYPHER_ENVVAR_KEYSTORE_PASSWORD,
-    NUCYPHER_ENVVAR_OPERATOR_ETHEREUM_PASSWORD, PRE_PAYMENT_NETWORKS, PRE_PAYMENT_NETWORK_CHOICES
+    CHAIN_NAMES, DEFAULT_CONFIG_ROOT, NETWORKS, NUCYPHER_ENVVAR_KEYSTORE_PASSWORD,
+    NUCYPHER_ENVVAR_OPERATOR_ETHEREUM_PASSWORD, PLAYBOOKS, TEMPLATES,
 )
 from nucypher_ops.ops import keygen
 from nucypher_ops.ops.ansible_utils import AnsiblePlayBookResultsCollector
-from nucypher_ops.ops.contracts import NuCypherContractRegistry
+from nucypher_ops.ops.contracts import TACoContractRegistry
 
 try:
     import boto3
@@ -53,9 +53,11 @@ def needs_provider(method):
 def needs_registry(method):
     def inner(self, *args, **kwargs):
         if self.contract_registry is None:
-            registry = NuCypherContractRegistry(network_name=self.network)
+            chain_id = NETWORKS[self.network]['policy']
+            registry = TACoContractRegistry(domain=self.network)
+            latest_publication = registry.fetch_latest_publication()[str(chain_id)]
             self.contract_registry = {name: (
-                address, abi) for name, version, address, abi in registry.fetch_latest_publication()}
+                info["address"], info["abi"]) for name, info in latest_publication.items()}
         return method(self, self.contract_registry, *args, **kwargs)
     return inner
 
@@ -65,16 +67,14 @@ class BaseCloudNodeConfigurator:
     NAMESSPACE_CREATE_ACTIONS = ['add', 'create', 'copy']
     application = 'ursula'
     required_fields = [
-        'eth_provider',
-        'pre_payment_provider',
+        'eth_endpoint',
+        'polygon_endpoint',
         'docker_image',
-        'pre_payment_network'
     ]
 
     host_level_override_prompts = {
-        'eth_provider': {"prompt": "--eth-provider: please provide the url of a hosted ethereum node (infura/geth) which your nodes can access", "choices": None},
-        'pre_payment_provider': {"prompt": "--pre-payment-provider: please provide the url of a hosted level-two node (infura/bor) which your nodes can access", "choices": None},
-        'pre_payment_network':  {"prompt": f'--pre-payment-network:  choose a payment network from: {PRE_PAYMENT_NETWORK_CHOICES}', "choices": PRE_PAYMENT_NETWORKS},
+        'eth_endpoint': {"prompt": "--eth-endpoint: please provide the url of a hosted ethereum node (infura/geth) which your nodes can access", "choices": None},
+        'polygon_endpoint': {"prompt": "--polygon-endpoint: please provide the url of a hosted level-two node (infura/bor) which your nodes can access", "choices": None},
     }
 
     output_capture = {
@@ -95,7 +95,7 @@ class BaseCloudNodeConfigurator:
                  envvars=None,
                  cliargs=None,
                  resource_name=None,
-                 eth_provider=None,
+                 eth_endpoint=None,
                  docker_image=None,
                  **kwargs
                  ):
@@ -163,7 +163,7 @@ class BaseCloudNodeConfigurator:
                 "keystorepassword": b64encode(os.urandom(64)).decode('utf-8'),
                 "ethpassword": b64encode(os.urandom(64)).decode('utf-8'),
                 'instances': {},
-                'eth_provider': eth_provider,
+                'eth_endpoint': eth_endpoint,
                 'docker_image': docker_image
             }
             self._write_config()
@@ -180,10 +180,9 @@ class BaseCloudNodeConfigurator:
         # save these to update host specific variables before deployment
         # to allow for individual host config differentiation
         self.host_level_overrides = {k: v for k, v in {
-            'eth_provider': eth_provider,
-            'pre_payment_provider': self.kwargs.get('pre_payment_provider'),
+            'eth_endpoint': eth_endpoint,
+            'polygon_endpoint': self.kwargs.get('polygon_endpoint'),
             'docker_image': docker_image,
-            'pre_payment_network':  self.kwargs.get('pre_payment_network'),
         }.items() if k in self.required_fields}
 
         self.config['seed_network'] = seed_network if seed_network is not None else self.config.get(
@@ -191,15 +190,52 @@ class BaseCloudNodeConfigurator:
         if not self.config['seed_network']:
             self.config.pop('seed_node', None)
 
-        if self.kwargs.get('pre_payment_network'):
-            self.config['pre_payment_network'] = self.kwargs.get('pre_payment_network')
-
         # add instance key as host_nickname for use in inventory
         if self.config.get('instances'):
             for k, v in self.config['instances'].items():
                 self.config['instances'][k]['host_nickname'] = k
 
+                # migration of old instance config values here
+                self._migrate_config_properties(self.config['instances'][k])
+
         self._write_config()
+
+    def _migrate_config_properties(self, node_config: Dict):
+        if self.application == "ursula":
+            #
+            # instance info
+            #
+
+            # remove payment/pre_payment_network if present
+            node_config.pop("pre_payment_network", None)
+            node_config.pop("payment_network", None)
+
+            # eth_provider -> eth_endpoint
+            eth_provider = node_config.pop("eth_provider", None)
+            if eth_provider:
+                node_config["eth_endpoint"] = eth_provider
+
+            # payment_provider/pre_payment_provider -> polygon_endpoint
+            payment_provider = node_config.pop("payment_provider", None)
+            pre_payment_provider = node_config.pop("pre_payment_provider", None)
+            provider_value = payment_provider or pre_payment_provider
+            if provider_value:
+                node_config["polygon_endpoint"] = provider_value
+
+            #
+            # runtime cli args
+            #
+            node_cliargs = node_config.get("runtime_cliargs", {})
+            deprecated_cliargs = [
+                "network",
+                "payment-network",
+                "pre-payment-network",
+                "payment-provider",
+                "pre-payment-provider",
+                "eth-provider",
+            ]
+            for deprecated_arg in deprecated_cliargs:
+                node_cliargs.pop(deprecated_arg, None)
 
     @property
     def user(self) -> str:
@@ -239,7 +275,7 @@ class BaseCloudNodeConfigurator:
         pass
 
     def _format_runtime_options(self, node_options):
-        node_options.update({'network': self.network})
+        node_options.update({'domain': self.network})
         return ' '.join([f'--{name} {value}' for name, value in node_options.items()])
 
     @property
@@ -284,6 +320,10 @@ class BaseCloudNodeConfigurator:
             raise KeyError(
                 f"No hosts matched the supplied host names: {node_names}; ensure `host-nickname` is used.  Try `nucypher-ops nodes list --all` to view hosts or create new hosts with `nucypher-ops nodes create`")
 
+        # migrate values if necessary
+        for key, node in nodes.items():
+            self._migrate_config_properties(nodes[key])
+
         defaults = self.default_config()
         if generate_keymaterial or kwargs.get('migrate_nucypher') or kwargs.get('init'):
             wallet = keygen.restore(self.config['keystoremnemonic'])
@@ -302,6 +342,7 @@ class BaseCloudNodeConfigurator:
                 node_vars = nodes[key].get(data_key, {})
                 for k, v in input_data:
                     node_vars.update({k: v})
+
                 nodes[key][data_key] = node_vars
 
                 # we want to update the config with the specified values
@@ -905,21 +946,21 @@ class BaseCloudNodeConfigurator:
     @needs_registry
     @needs_provider
     def get_staking_provider(self, web3, contracts, address):
-        contract_address, abi = contracts['SimplePREApplication']
+        contract_address, abi = contracts['TACoApplication']
         contract = web3.eth.contract(abi=abi, address=contract_address)
         return contract.functions.stakingProviderFromOperator(address).call()
 
     @needs_registry
     @needs_provider
     def check_is_confirmed(self, web3, contracts, address):
-        contract_address, abi = contracts['SimplePREApplication']
+        contract_address, abi = contracts['TACoApplication']
         contract = web3.eth.contract(abi=abi, address=contract_address)
         return contract.functions.isOperatorConfirmed(address).call()
 
     @needs_registry
     @needs_provider
     def get_stake_amount(self, web3, contracts, address):
-        contract_address, abi = contracts['SimplePREApplication']
+        contract_address, abi = contracts['TACoApplication']
         contract = web3.eth.contract(abi=abi, address=contract_address)
         balance = contract.functions.authorizedStake(address).call()
         return int(web3.fromWei(balance, 'ether'))
