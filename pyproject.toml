@@ -1,0 +1,7 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+
+[tool.ruff]
+exclude = ["nucypher_ops/__init__.py"] # false positives
+select = ["E", "F", "I"]
+line-length = 180

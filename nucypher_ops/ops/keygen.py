@@ -17,7 +17,6 @@
 
 from getpass import getpass
 
-from hdwallet.cryptocurrencies import EthereumMainnet
 from hdwallet.hdwallet import HDWallet
 from hdwallet.utils import generate_entropy
 
@@ -32,14 +31,10 @@ ACCOUNTS = 10
 
 def generate(prompt=False):
     if passphrase := prompt:
-        passphrase = getpass('Enter passphrase (optional): ')
+        passphrase = getpass("Enter passphrase (optional): ")
     entropy: str = generate_entropy(strength=STRENGTH)
     hdwallet = HDWallet()
-    hdwallet.from_entropy(
-        entropy=entropy,
-        language=LANGUAGE,
-        passphrase=passphrase
-    )
+    hdwallet.from_entropy(entropy=entropy, language=LANGUAGE, passphrase=passphrase)
     return hdwallet
 
 
@@ -52,18 +47,13 @@ def derive(wallet: HDWallet, quantity: int = ACCOUNTS):
 
 def restore(words: str, prompt=False):
     if passphrase := prompt:
-        passphrase = getpass('Enter passphrase (optional): ')
+        passphrase = getpass("Enter passphrase (optional): ")
     wallet = HDWallet()
-    wallet.from_mnemonic(
-        mnemonic=words,
-        language=LANGUAGE,
-        passphrase=passphrase
-    )
+    wallet.from_mnemonic(mnemonic=words, language=LANGUAGE, passphrase=passphrase)
     return wallet
 
 
 if __name__ == "__main__":
-
     # Generate
     wallet = generate()
     print(wallet.mnemonic())
