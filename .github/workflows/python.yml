@@ -12,6 +12,10 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+<<<<<<< HEAD
+=======
+
+>>>>>>> cced0c2 (Update .github/workflows/python.yml)
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v4
         with:
