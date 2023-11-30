@@ -1,4 +1,4 @@
-from typing import Dict, Union
+from typing import Dict
 
 import requests
 
@@ -10,12 +10,12 @@ class TACoContractRegistry:
     """
 
     _PUBLICATION_REPO = "nucypher/nucypher"
-    _BASE_URL = f'https://raw.githubusercontent.com/{_PUBLICATION_REPO}'
+    _BASE_URL = f"https://raw.githubusercontent.com/{_PUBLICATION_REPO}"
 
     name = "GitHub Registry Source"
     is_primary = True
 
-    def __init__(self, domain='mainnet'):
+    def __init__(self, domain="mainnet"):
         self.domain = domain
 
     def get_publication_endpoint(self) -> str:
@@ -28,11 +28,13 @@ class TACoContractRegistry:
         try:
             # Fetch
             response = requests.get(publication_endpoint)
-        except requests.exceptions.ConnectionError as e:
+        except requests.exceptions.ConnectionError:
             raise
 
         if response.status_code != 200:
-            raise AttributeError(f"No registry found at {self.get_publication_endpoint()}")
+            raise AttributeError(
+                f"No registry found at {self.get_publication_endpoint()}"
+            )
 
         registry_data = response.json()
         return registry_data

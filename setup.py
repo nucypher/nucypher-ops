@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Dict
 
 
-PACKAGE_NAME = 'nucypher_ops'
+PACKAGE_NAME = "nucypher_ops"
 BASE_DIR = Path(__file__).parent
 
 ABOUT: Dict[str, str] = dict()
@@ -28,32 +28,32 @@ PYPI_CLASSIFIERS = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
-    "Topic :: Security"
+    "Topic :: Security",
 ]
 
 setup(
     packages=find_packages(),
     include_package_data=True,
-    name=ABOUT['__title__'],
-    url=ABOUT['__url__'],
-    version=ABOUT['__version__'],
-    author=ABOUT['__author__'],
-    author_email=ABOUT['__email__'],
-    description=ABOUT['__summary__'],
-    license=ABOUT['__license__'],
+    name=ABOUT["__title__"],
+    url=ABOUT["__url__"],
+    version=ABOUT["__version__"],
+    author=ABOUT["__author__"],
+    author_email=ABOUT["__email__"],
+    description=ABOUT["__summary__"],
+    license=ABOUT["__license__"],
     install_requires=[
-        'click',
-        'colorama',
-        'ansible',
-        'hdwallet',
-        'mako',
-        'requests',
-        'maya',
-        'appdirs',
-        'tabulate',
+        "click",
+        "colorama",
+        "ansible",
+        "hdwallet",
+        "mako",
+        "requests",
+        "maya",
+        "appdirs",
+        "tabulate",
     ],
-    entry_points='''
+    entry_points="""
         [console_scripts]
         nucypher-ops=nucypher_ops.cli.main:index
-    ''',
+    """,
 )
