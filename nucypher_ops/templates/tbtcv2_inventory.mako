@@ -20,8 +20,8 @@ all:
                   %for attr in node['provider_deploy_attrs']:
                   ${attr['key']}: ${attr['value']}
                   %endfor
-                  % if node.get('eth_provider'):
-                  eth_provider: ${node['eth_provider']}
+                  % if node.get('eth_endpoint'):
+                  eth_provider: ${node['eth_endpoint']}
                   %endif
                   %if node.get('docker_image'):
                   docker_image: ${node['docker_image']}
