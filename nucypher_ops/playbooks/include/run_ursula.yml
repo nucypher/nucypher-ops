@@ -38,7 +38,7 @@
 
     - name: Find my public ip
       uri:
-        url: http://ifconfig.me/ip
+        url: https://api.ipify.org
         return_content: yes
       register: ip_response
 
